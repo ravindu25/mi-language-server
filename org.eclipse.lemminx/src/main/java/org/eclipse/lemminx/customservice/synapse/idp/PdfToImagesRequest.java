@@ -25,3 +25,4 @@ public class PdfToImagesRequest {
         this.base64 = base64;
     }
 }
+

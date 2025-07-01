@@ -758,18 +758,9 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     }
 
     @Override
-    public CompletableFuture<List<String>> pdfToImagesBase64(PdfToImagesRequest param) {
+	public CompletableFuture<List<String>> pdfToImagesBase64(PdfToImagesRequest param) {
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<String> images = Utils.pdfToImage(param.getBase64());
-                return images;
-            } catch (Exception e) {
-                log.log(Level.SEVERE, "Error occurred while converting pdf to images", e);
-                return new ArrayList<>();
-            }
-        });
-    }
+    	return CompletableFuture.supplyAsync(() -> Utils.pdfToImage(param.getBase64()));
 
     public String getProjectUri() {
         return projectUri;

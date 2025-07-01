@@ -75,6 +75,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1465,33 +1466,45 @@ public class Utils {
         return value.replaceAll("<!\\[CDATA\\[", "").replaceAll("]]>", "");
     }
 
-     /**
+    /**
      * Converts a Base64 encoded PDF string into a List of Base64 encoded PNG image strings.
      *
      * @param base64Pdf Content of the PDF in Base64.
-     * @return A List of strings, where each string is a Base64 encoded PNG image of a page.
+     * @return A List of strings, where each string is a Base64 encoded PNG image of a page,
+     * or an empty list if any error occurs.
      */
-    public static List<String> pdfToImage(String base64Pdf) throws IOException, IllegalArgumentException {
-        List<String> encodedImages = new ArrayList<>();
+    public static List<String> pdfToImage(String base64Pdf) {
+        if (base64Pdf == null || base64Pdf.isEmpty()) {
+            logger.log(Level.WARNING, "pdfToImage called with null or empty Base64 string.");
+            return Collections.emptyList();
+        }
 
         try {
+            final List<String> encodedImages = new ArrayList<>();
             final byte[] pdfData = Base64.getDecoder().decode(base64Pdf);
+
             try (PDDocument document = Loader.loadPDF(pdfData)) {
                 PDFRenderer pdfRenderer = new PDFRenderer(document);
                 for (int page = 0; page < document.getNumberOfPages(); ++page) {
                     BufferedImage bufferedImage = pdfRenderer.renderImageWithDPI(page, 300, ImageType.RGB);
                     try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                        ImageIO.write(bufferedImage, "png", baos); 
+                        ImageIO.write(bufferedImage, "png", baos);
                         String base64Image = Base64.getEncoder().encodeToString(baos.toByteArray());
                         encodedImages.add("data:image/png;base64," + base64Image);
                     }
                 }
-            } 
+            }
             return encodedImages;
+
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid Base64 encoded PDF content.", e);
+            logger.log(Level.WARNING, "Failed to decode Base64 string. The provided input is invalid.", e);
+            return Collections.emptyList();
         } catch (IOException e) {
-            throw new IOException("Error while processing PDF to image conversion.", e);
+            logger.log(Level.SEVERE, "Failed to process PDF content. The file may be corrupt or unsupported.", e);
+            return Collections.emptyList();
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "An unexpected error occurred during PDF to image conversion.", e);
+            return Collections.emptyList();
         }
     }
 }
