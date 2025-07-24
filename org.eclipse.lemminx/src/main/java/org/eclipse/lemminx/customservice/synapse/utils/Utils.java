@@ -1474,7 +1474,7 @@ public class Utils {
      * or an empty list if any error occurs.
      */
     public static List<String> pdfToImage(String base64Pdf) {
-        if (base64Pdf == null || base64Pdf.isEmpty()) {
+        if (StringUtils.isEmpty(base64Pdf)) {
             logger.log(Level.WARNING, "pdfToImage called with null or empty Base64 string.");
             return Collections.emptyList();
         }
