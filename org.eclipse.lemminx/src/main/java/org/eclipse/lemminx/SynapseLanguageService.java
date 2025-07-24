@@ -761,6 +761,7 @@ public class SynapseLanguageService implements ISynapseLanguageService {
 	public CompletableFuture<List<String>> pdfToImagesBase64(PdfToImagesRequest param) {
 
     	return CompletableFuture.supplyAsync(() -> Utils.pdfToImage(param.getBase64()));
+	}
 
     public String getProjectUri() {
         return projectUri;
