@@ -16,6 +16,7 @@ package org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.mediator.exten
 
 public enum ScriptLanguage {
     js,
+    graalJs,
     rb,
     groovy,
     nashornJs,

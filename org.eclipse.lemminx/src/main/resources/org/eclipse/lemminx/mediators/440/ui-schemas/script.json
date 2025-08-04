@@ -14,6 +14,7 @@
         "defaultValue": "js",
         "comboValues": [
           "js",
+          "graalJs",
           "rb",
           "groovy",
           "nashornJs",
@@ -64,6 +65,9 @@
           "values": [
             {
               "js": "js"
+            },
+            {
+              "graalJs": "graalJs"
             },
             {
               "rb": "rb"

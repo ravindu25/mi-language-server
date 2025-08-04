@@ -40,6 +40,7 @@
                 <xs:simpleType>
                     <xs:restriction base="xs:string">
                         <xs:enumeration value="js"/>
+                        <xs:enumeration value="graalJs"/>
                         <xs:enumeration value="rb"/>
                         <xs:enumeration value="groovy"/>
                         <xs:enumeration value="nashornJs"/>
