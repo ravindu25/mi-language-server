@@ -100,13 +100,9 @@ public class PomParser {
                     }
                 }
             }
-            String value;
-            if (propertiesElement != null) {
-                value = elementToString(propertiesElement);
-            } else {
-                value = elementInString.toString();
-            }
-            if (value == null) {
+            String value =
+                    (propertiesElement != null) ? elementToString(propertiesElement) : elementInString.toString();
+            if (StringUtils.isEmpty(value)) {
                 return null;
             }
             // Add the new content inside the <properties> section
@@ -349,7 +345,7 @@ public class PomParser {
         }
     }
 
-    public static Range getPropertiesRange(List<String> pomContent) {
+    private static Range getPropertiesRange(List<String> pomContent) {
         if (pomContent == null || pomContent.isEmpty()) {
             return null;
         }
