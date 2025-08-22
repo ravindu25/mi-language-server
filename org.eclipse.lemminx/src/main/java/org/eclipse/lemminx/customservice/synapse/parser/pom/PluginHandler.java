@@ -176,8 +176,10 @@ public class PluginHandler extends DefaultHandler {
             case Constants.PLUGIN:
                 switch (pluginArtifactId.trim()) {
                     case Constants.VSCODE_CAR_PLUGIN:
-                        pomDetailsResponse.getBuildDetails().getAdvanceDetails().getPluginDetails().
-                                setProjectBuildPluginVersion(pluginVersion, range);
+                        if (pluginVersion.matches("^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z]+)?$")) {
+                            pomDetailsResponse.getBuildDetails().getAdvanceDetails().getPluginDetails().
+                                    setProjectBuildPluginVersion(pluginVersion, range);
+                        }
                         break;
                     case Constants.MI_CONTAINER_CONFIG_MAPPER:
                         pomDetailsResponse.getBuildDetails().getAdvanceDetails().getPluginDetails().
