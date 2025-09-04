@@ -411,6 +411,7 @@ public class Constant {
     public static final String CONNECTOR = "connector";
     public static final String DOT = ".";
     public static final String HYPHEN = "-";
+    public static final String UNDERSCORE = "_";
     public static final String XML = "xml";
     public static final String LOCAL_ENTRIES = "local-entries";
     public static final CharSequence GOV_REGISTRY_PREFIX = "gov:";

@@ -117,7 +117,7 @@ public abstract class AbstractResourceFinder {
 
         initDependentResourcesMap();
         String projectName = new File(projectPath).getName();
-        Path projectDependencyDir = findProjectDependencyDir(projectName);
+        Path projectDependencyDir = findProjectDependencyDir(projectPath);
         if (projectDependencyDir == null) {
             LOGGER.warning("No project dependency directory found for project: " + projectPath);
             return "No dependent integration projects found";
@@ -131,6 +131,7 @@ public abstract class AbstractResourceFinder {
 
         Map<String, List<String>> duplicates = new HashMap<>();
         Map<String, ResourceResponse> tempResourcesMap = new HashMap<>();
+        // Used to identify any duplicate artifacts across projects
         Map<String, List<String>> artifactNameToProjects = new HashMap<>();
 
         // Collect main project artifacts
@@ -186,28 +187,28 @@ public abstract class AbstractResourceFinder {
     }
 
     /**
-     * Finds the integration project dependency directory for a given project name.
+     * Finds the dependency directory for a given project path.
      * <p>
-     * Searches for a directory matching the pattern "{projectName}_[a-zA-Z0-9]+" and returns its path if found.
+     * This method constructs the expected dependency directory path using the user's home directory,
+     * WSO2 MI constants, and a hash of the project path.
      *
-     * @param projectName the name of the project whose dependency directory is to be found
-     * @return the path to the project dependency directory, or null if not found or an I/O error occurs
+     * @param projectPath the absolute path to the project
+     * @return the dependency directory as a Path if it exists, or null if not found
      */
-    private Path findProjectDependencyDir(String projectName) {
+    private Path findProjectDependencyDir(String projectPath) {
 
-        Path projectDependenciesTempDir = Path.of(System.getProperty(Constant.USER_HOME), Constant.WSO2_MI,
-                Constant.INTEGRATION_PROJECT_DEPENDENCIES);
-        // Pattern to match the project dependency dir in cached dir
-        final String projectDependencyDirPattern = "^" + projectName + "_[a-zA-Z0-9]+$";
-        try (var projectDirs = list(projectDependenciesTempDir)) {
-            return projectDirs
-                    .filter(path -> path.getFileName().toString().matches(projectDependencyDirPattern) &&
-                            isDirectory(path))
-                    .findFirst()
-                    .orElse(null);
-        } catch (IOException e) {
-            return null;
+        Path dependenciesDir = Path.of(
+                System.getProperty(Constant.USER_HOME),
+                Constant.WSO2_MI,
+                Constant.INTEGRATION_PROJECT_DEPENDENCIES
+        );
+        String projectName = new File(projectPath).getName();
+        String hashedPath = Utils.getHash(projectPath);
+        Path expectedDir = dependenciesDir.resolve(projectName + Constant.UNDERSCORE + hashedPath);
+        if (exists(expectedDir) && isDirectory(expectedDir)) {
+            return expectedDir;
         }
+        return null;
     }
 
     /**
