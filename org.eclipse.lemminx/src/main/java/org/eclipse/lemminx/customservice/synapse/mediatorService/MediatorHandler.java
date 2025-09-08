@@ -74,6 +74,7 @@ public class MediatorHandler {
     private Gson gson;
     private String miServerVersion;
     private AIConnectorHandler aiConnectorHandler;
+    private String projectUri;
 
     public void init(String projectUri, String projectServerVersion, ConnectorHolder connectorHolder) {
 
@@ -84,6 +85,7 @@ public class MediatorHandler {
             this.agentToolList = Utils.getAgentToolList(mediatorList, connectorHolder);
             gson = new Gson();
             this.aiConnectorHandler = new AIConnectorHandler(this, projectUri);
+            this.projectUri = projectUri;
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE,
                     String.format("Failed to load mediators for the MI server version: %s", projectServerVersion), e);
@@ -339,6 +341,16 @@ public class MediatorHandler {
                     String mediatorClass = mediatorObject.get(Constant.MEDIATOR_CLASS).getAsString();
                     String processingClass = mediatorObject.get(Constant.PROCESSING_CLASS).getAsString();
                     String processingMethod = mediatorObject.get(Constant.STORE_METHOD).getAsString();
+                    if(mediator.equals(Constant.DATA_MAPPER) && data.get(Constant.NAME).toString().contains("gov:datamapper")){
+                        String name = (String) data.get(Constant.NAME);
+                        String dmName = name.substring(name.lastIndexOf("/") + 1);
+                        String dmcPath = Path.of(projectUri, Constant.SRC, Constant.MAIN, Constant.WSO2MI,
+                                Constant.RESOURCES, Constant.REGISTRY, Constant.GOV,
+                                Constant.DATA_MAPPER, dmName + ".dmc").toString();
+                        if(Files.exists(Path.of(dmcPath))){
+                            data.put(Constant.NAME, data.get(Constant.NAME) + ".dmc");
+                        }
+                    }
                     Class<?> mediatorProcessor = Class.forName(processingClass);
                     Object processorInstance = mediatorProcessor.getDeclaredConstructor().newInstance();
                     Method processorMethod =
