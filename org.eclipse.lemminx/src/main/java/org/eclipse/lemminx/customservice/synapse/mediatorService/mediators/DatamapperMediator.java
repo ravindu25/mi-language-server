@@ -36,12 +36,24 @@ public class DatamapperMediator {
         Matcher matcher = pattern.matcher((String) data.get("name"));
         if (matcher.find()) {
             String datamapperName = matcher.group(2);
-            String configurationLocalPath = data.get("name") + "/" + datamapperName + ".dmc";
-            String inputSchemaLocalPath = data.get("name") + "/" + datamapperName + "_inputSchema.json";
-            String outputSchemaLocalPath = data.get("name") + "/" + datamapperName + "_outputSchema.json";
-            data.put("configurationLocalPath", configurationLocalPath);
-            data.put("inputSchemaLocalPath", inputSchemaLocalPath);
-            data.put("outputSchemaLocalPath", outputSchemaLocalPath);
+            if (datamapperName.endsWith(".dmc")) {
+                //Removing the .dmc extension from the datamapper name
+                String datamapperBaseName = data.get("name").toString()
+                        .substring(0, data.get("name").toString().length() - 4);
+                String configurationLocalPath = datamapperBaseName + ".dmc";
+                String inputSchemaLocalPath = datamapperBaseName + "_inputSchema.json";
+                String outputSchemaLocalPath = datamapperBaseName + "_outputSchema.json";
+                data.put("configurationLocalPath", configurationLocalPath);
+                data.put("inputSchemaLocalPath", inputSchemaLocalPath);
+                data.put("outputSchemaLocalPath", outputSchemaLocalPath);
+            }  else {
+                String configurationLocalPath = data.get("name") + "/" + datamapperName + ".dmc";
+                String inputSchemaLocalPath = data.get("name") + "/" + datamapperName + "_inputSchema.json";
+                String outputSchemaLocalPath = data.get("name") + "/" + datamapperName + "_outputSchema.json";
+                data.put("configurationLocalPath", configurationLocalPath);
+                data.put("inputSchemaLocalPath", inputSchemaLocalPath);
+                data.put("outputSchemaLocalPath", outputSchemaLocalPath);
+            }
         }
         return Either.forLeft(data);
 
