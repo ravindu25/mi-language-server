@@ -312,6 +312,7 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     public CompletableFuture<ExtendedLocation> definition(
             DefinitionParams params) {
 
+        log.log(Level.INFO, "Processing definition request for document: " + params.getTextDocument().getUri());
         return xmlTextDocumentService.computeDOMAsync(params.getTextDocument(), (xmlDocument, cancelChecker) -> {
             Map<String, ResourceResponse> dependentResourcesMap = resourceFinder.getDependentResourcesMap();
 
