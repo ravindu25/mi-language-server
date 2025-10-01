@@ -52,9 +52,9 @@ public class DependencyDownloadManager {
             return "Some connectors were not downloaded: " + String.join(", ", failedConnectorDependencies);
         }
         if (!failedIntegrationProjectDependencies.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "Some integration project dependencies were not downloaded: " +
+            LOGGER.log(Level.SEVERE, "Following integration project dependencies were unavailable: " +
                     String.join(", ", failedIntegrationProjectDependencies));
-            return "Some integration project dependencies were not downloaded: " +
+            return "Following integration project dependencies were unavailable: " +
                     String.join(", ", failedIntegrationProjectDependencies);
         }
         return "Success";
