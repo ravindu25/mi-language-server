@@ -66,7 +66,7 @@ public class OldProjectResourceFinder extends AbstractResourceFinder {
     @Override
     public Map<String, ResourceResponse> findAllResources(String projectPath) {
 
-        // TODO: Used to locate resources in dependent projects; only needed for new projects.
+        // Only needed for new project structure.
         return Map.of();
     }
 
