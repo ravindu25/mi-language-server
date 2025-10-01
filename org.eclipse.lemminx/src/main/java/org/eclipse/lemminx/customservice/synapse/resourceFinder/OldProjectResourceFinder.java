@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 public class OldProjectResourceFinder extends AbstractResourceFinder {
@@ -60,6 +61,13 @@ public class OldProjectResourceFinder extends AbstractResourceFinder {
         response.setResources(resourcesInArtifacts);
         response.setRegistryResources(resourcesInRegistry);
         return response;
+    }
+
+    @Override
+    public Map<String, ResourceResponse> findAllResources(String projectPath) {
+
+        // Only needed for new project structure.
+        return Map.of();
     }
 
     @Override
