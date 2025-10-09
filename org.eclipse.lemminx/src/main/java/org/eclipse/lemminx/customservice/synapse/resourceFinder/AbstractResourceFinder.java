@@ -135,15 +135,21 @@ public abstract class AbstractResourceFinder {
                     Map<String, ResourceResponse> dependentProjectAllResources = findAllResources(dependentProject.toString());
                     for (String type : dependentProjectAllResources.keySet()) {
                         ResourceResponse resources = dependentProjectAllResources.get(type);
-                        // Append project details(group ID and artifact ID) to synapse artifacts
-                        resources.getResources().forEach(resource -> {
-                            resource.setName(getFullyQualifiedName(pomDetailsResponse, resource));
-                        });
-                        // Append project details(group ID and artifact ID) to registry artifacts
-                        resources.getRegistryResources().forEach(resource -> {
-                            ((RegistryResource) resource)
-                                    .setRegistryKey(getFullyQualifiedNameForRegistryArtifact(pomDetailsResponse, (RegistryResource) resource));
-                        });
+                        if (resources != null) {
+                            // Append project details(group ID and artifact ID) to synapse artifacts
+                            if (resources.getResources() != null) {
+                                resources.getResources().forEach(resource -> {
+                                    resource.setName(getFullyQualifiedName(pomDetailsResponse, resource));
+                                });
+                            }
+                            // Append project details(group ID and artifact ID) to registry artifacts
+                            if (resources.getRegistryResources() != null) {
+                                resources.getRegistryResources().forEach(resource -> {
+                                    ((RegistryResource) resource)
+                                            .setRegistryKey(getFullyQualifiedNameForRegistryArtifact(pomDetailsResponse, (RegistryResource) resource));
+                                });
+                            }
+                        }
                         dependentResourcesMap.computeIfAbsent(type, k -> new ResourceResponse());
                         mergeResourceResponses(dependentResourcesMap.get(type), resources);
                         addArtifactNamesToProjects(resources, projectNameDep, artifactNameToProjects);

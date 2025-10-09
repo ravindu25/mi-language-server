@@ -77,7 +77,7 @@ public class MediatorInfo {
 
     public void addAxis2Property(Property property) {
 
-        properties.addSynapseProperty(property);
+        properties.addAxis2Property(property);
     }
 
     public void addAxis2ClientProperty(Property property) {
