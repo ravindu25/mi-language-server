@@ -181,6 +181,13 @@ public class DirectoryTreeBuilder {
         }
     }
 
+    /**
+     * Recursively removes .gitkeep files from the JSON node tree structure.
+     * This method traverses both object and array nodes, identifying and removing
+     * any nodes that represent .gitkeep files.
+     *
+     * @param node the JSON node to process
+     */
     private static void removeGitkeepFiles(JsonNode node) {
 
         if (node == null || node.isMissingNode()) {
