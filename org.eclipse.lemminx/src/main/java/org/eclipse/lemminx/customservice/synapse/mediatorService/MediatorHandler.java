@@ -638,10 +638,10 @@ public class MediatorHandler {
                 String uiSchemaPath = operation.getUiSchemaPath();
                 try {
                     JsonObject uiSchemaObject = Utils.getJsonObject(Utils.readFile(new File(uiSchemaPath)));
-                    uiSchemaObject.addProperty(Constant.CAN_TRY_OUT,
-                            Utils.compareVersions(miServerVersion, Constant.MI_430_VERSION) > 0);
+                    boolean isTryoutSupported = Utils.compareVersions(miServerVersion, Constant.MI_430_VERSION) > 0;
+                    uiSchemaObject.addProperty(Constant.CAN_TRY_OUT, isTryoutSupported);
                     JsonObject resultObject = new JsonObject();
-                    if (documentIdentifier != null && position != null) {
+                    if (isTryoutSupported && documentIdentifier != null && position != null) {
                         resultObject.addProperty(Constant.RESPONSE_VARIABLE, generateResponseVariableDefaultValue(documentIdentifier, position, connectorName, operationName));
                     }
                     return mapInputToUISchema(resultObject, uiSchemaObject);
