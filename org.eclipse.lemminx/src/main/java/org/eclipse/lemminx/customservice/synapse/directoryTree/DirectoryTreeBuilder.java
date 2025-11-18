@@ -123,6 +123,7 @@ public class DirectoryTreeBuilder {
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(directoryMap.getDirectoryMap().getAsJsonObject().toString());
+            removeGitkeepFiles(root);
             JsonNode artifacts = root.path(Constant.SRC).path(MAIN).path(WSO2MI).path(Constant.ARTIFACTS);
             JsonNode resources = root.path(Constant.SRC).path(MAIN).path(WSO2MI).path(Constant.RESOURCES);
             ObjectNode newArtifacts = mapper.createObjectNode();
@@ -177,6 +178,50 @@ public class DirectoryTreeBuilder {
         } catch (JsonProcessingException e) {
             LOGGER.log(Level.SEVERE, "Error occurred while building the project explorer directory tree.", e);
             return null;
+        }
+    }
+
+    /**
+     * Recursively removes .gitkeep files from the JSON node tree structure.
+     * This method traverses both object and array nodes, identifying and removing
+     * any nodes that represent .gitkeep files.
+     *
+     * @param node the JSON node to process
+     */
+    private static void removeGitkeepFiles(JsonNode node) {
+
+        if (node == null || node.isMissingNode()) {
+            return;
+        }
+        if (node.isObject()) {
+            ObjectNode obj = (ObjectNode) node;
+            List<String> fieldsToRemove = new ArrayList<>();
+
+            obj.fieldNames().forEachRemaining(field -> {
+                JsonNode child = obj.get(field);
+                if (child.isObject() && child.has(Constant.NAME) &&
+                        Constant.GITKEEP.equals(child.get(Constant.NAME).asText())) {
+                    fieldsToRemove.add(field);
+                } else {
+                    removeGitkeepFiles(child);
+                }
+            });
+            fieldsToRemove.forEach(obj::remove);
+        } else if (node.isArray()) {
+            ArrayNode arrayNode = (ArrayNode) node;
+            List<Integer> itemsToRemove = new ArrayList<>();
+            for (int index = 0; index < arrayNode.size(); index++) {
+                JsonNode child = arrayNode.get(index);
+                if (child.isObject() && child.has(Constant.NAME) &&
+                        Constant.GITKEEP.equals(child.get(Constant.NAME).asText())) {
+                    itemsToRemove.add(index);
+                } else {
+                    removeGitkeepFiles(child);
+                }
+            }
+            for (int index = itemsToRemove.size() - 1; index >= 0; index--) {
+                arrayNode.remove(itemsToRemove.get(index));
+            }
         }
     }
 
