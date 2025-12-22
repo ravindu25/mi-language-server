@@ -16,6 +16,7 @@ package org.eclipse.lemminx;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.lemminx.customservice.ISynapseLanguageService;
 import org.eclipse.lemminx.customservice.SynapseLanguageClientAPI;
 import org.eclipse.lemminx.customservice.synapse.CodeDiagnosticRequest;
@@ -332,7 +333,8 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     @Override
     public CompletableFuture<ResourceResponse> availableResources(ResourceParam param) {
 
-        ResourceResponse response = resourceFinder.getAvailableResources(projectUri, param.resourceType);
+        ResourceResponse response = resourceFinder.getAvailableResources(
+                StringUtils.isNotBlank(param.projectPath) ? param.projectPath : projectUri, param.resourceType);
         return CompletableFuture.supplyAsync(() -> response);
     }
 

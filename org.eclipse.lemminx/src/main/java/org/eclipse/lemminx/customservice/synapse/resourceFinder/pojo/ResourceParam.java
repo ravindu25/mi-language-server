@@ -14,6 +14,7 @@
 
 package org.eclipse.lemminx.customservice.synapse.resourceFinder.pojo;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 
 import java.util.List;
@@ -21,4 +22,5 @@ import java.util.List;
 public class ResourceParam {
 
     public Either<String, List<RequestedResource>> resourceType;
+    public String projectPath = StringUtils.EMPTY;
 }
