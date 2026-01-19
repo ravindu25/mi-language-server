@@ -226,7 +226,10 @@ public class ExpressionHelperProvider {
 
         List<CompletionItem> dataList = new ArrayList<>();
         for (Property variable : properties) {
-            String expression = expressionPrefix + Constant.DOT + variable.getKey();
+            String variableName = variable.getKey();
+            String referenceValue = variableName.contains(Constant.DOT) || variableName.contains(Constant.SPACE) ?
+                    "[&quot;" + variableName + "&quot;]" : variableName;
+            String expression = expressionPrefix + Constant.DOT + referenceValue;
             HelperPanelItem item = new HelperPanelItem(variable.getKey(), expression);
             String value = variable.getValue();
             if (variable.getProperties() != null && !variable.getProperties().isEmpty()) {
@@ -266,8 +269,8 @@ public class ExpressionHelperProvider {
 
     private String getExpressionSuffix(String key) {
 
-        if (key.contains(StringUtils.SPACE)) {
-            return "[\"" + key + "\"]";
+        if (key.contains(Constant.DOT) || key.contains(StringUtils.SPACE)) {
+            return "[&quot;" + key + "&quot;]";
         }
         return Constant.DOT + key;
     }
