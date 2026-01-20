@@ -228,7 +228,7 @@ public class ExpressionHelperProvider {
         for (Property variable : properties) {
             String variableName = variable.getKey();
             String referenceValue = variableName.contains(Constant.DOT) || variableName.contains(Constant.SPACE) ?
-                    "[&quot;" + variableName + "&quot;]" : variableName;
+                    "[\"" + variableName + "\"]" : variableName;
             String expression = expressionPrefix + Constant.DOT + referenceValue;
             HelperPanelItem item = new HelperPanelItem(variable.getKey(), expression);
             String value = variable.getValue();
@@ -270,7 +270,7 @@ public class ExpressionHelperProvider {
     private String getExpressionSuffix(String key) {
 
         if (key.contains(Constant.DOT) || key.contains(StringUtils.SPACE)) {
-            return "[&quot;" + key + "&quot;]";
+            return "[\"" + key + "\"]";
         }
         return Constant.DOT + key;
     }
