@@ -27,10 +27,10 @@ jobs:
     - name: Get version
       id: ls
       run: |
-        filePath=$(ls org.eclipse.lemminx/target/*SNAPSHOT.jar)
-        file=$(basename $filePath)
+        filePath=$(ls org.eclipse.lemminx/target/mi-language-server-*.jar | grep -v tests | head -n 1)
+        file=$(basename "$filePath")
         fileName=${file%.jar}
-        version=$(echo "$fileName" | cut -d'-' -f4-6)
+        version=${fileName#mi-language-server-}
 
         echo $version
         echo "version=$version" >> $GITHUB_OUTPUT
