@@ -352,10 +352,10 @@ public class RestApiAdmin {
             File existingSwaggerFile = new File(param.swaggerPath);
             if (existingSwaggerFile.exists()) {
                 return generateUpdatedSwaggerFromAPI(existingSwaggerFile, param.isJsonIn, param.isJsonOut,
-                        param.apiPath, param.port, param.projectPath);
+                        param.apiPath, param.hostname, param.port, param.projectPath);
             }
         }
-        return generateSwaggerFromSynapseAPIByFormat(param.apiPath, param.isJsonOut, param.port);
+        return generateSwaggerFromSynapseAPIByFormat(param.apiPath, param.isJsonOut, param.hostname, param.port);
     }
 
     /**
@@ -386,7 +386,7 @@ public class RestApiAdmin {
      * @param apiPath API file path
      * @return generated API
      */
-    public GenerateSwaggerResponse generateSwaggerFromSynapseAPIByFormat(String apiPath, boolean isJSON, int port) {
+    public GenerateSwaggerResponse generateSwaggerFromSynapseAPIByFormat(String apiPath, boolean isJSON, String hostname, int port) {
 
         GenerateSwaggerResponse response = new GenerateSwaggerResponse();
         try {
@@ -394,7 +394,7 @@ public class RestApiAdmin {
             DOMDocument domDocument = Utils.getDOMDocument(apiFile);
             APIFactory factory = new APIFactory();
             API api = (API) factory.create(domDocument.getDocumentElement());
-            String generatedSwagger = generateSwaggerFromSynapseAPIByFormat(api, isJSON, port);
+            String generatedSwagger = generateSwaggerFromSynapseAPIByFormat(api, isJSON, hostname, port);
             response.setSwagger(generatedSwagger);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Error occurred while reading the existing API file.", e);
@@ -410,14 +410,14 @@ public class RestApiAdmin {
      * @param isJSON generate Swagger in YAML / JSON format.
      * @return generated swagger.
      */
-    public String generateSwaggerFromSynapseAPIByFormat(API api, boolean isJSON, int port) {
+    public String generateSwaggerFromSynapseAPIByFormat(API api, boolean isJSON, String hostname, int port) {
 
-        return new OpenAPIProcessor(api).getOpenAPISpecification(isJSON, port);
+        return new OpenAPIProcessor(api).getOpenAPISpecification(isJSON, hostname, port);
     }
 
     private GenerateSwaggerResponse generateUpdatedSwaggerFromAPI(File existingSwaggerFile, boolean isJSONIn,
-                                                                  boolean isJSONOut, String apiPath, int port,
-                                                                  String projectPath) {
+                                                                  boolean isJSONOut, String apiPath, String hostname,
+                                                                  int port, String projectPath) {
 
         GenerateSwaggerResponse response = new GenerateSwaggerResponse();
         API api;
@@ -434,7 +434,7 @@ public class RestApiAdmin {
         try {
             String swaggerContent = Utils.readFile(existingSwaggerFile);
             String generatedSwagger = generateUpdatedSwaggerFromAPI(swaggerContent, isJSONIn, isJSONOut, api,
-                                          port, projectPath);
+                                          hostname, port, projectPath);
             response.setSwagger(generatedSwagger);
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Error occurred while reading the existing Swagger file.", e);
@@ -457,10 +457,10 @@ public class RestApiAdmin {
      * @throws APIGenException Error occurred while generating the updated definition.
      */
     public String generateUpdatedSwaggerFromAPI(String existingSwagger, boolean isJSONIn, boolean isJSONOut, API api,
-                                                int port, String projectPath)
+                                                String hostname, int port, String projectPath)
             throws APIGenException {
 
         OpenAPIProcessor openAPIProcessor = new OpenAPIProcessor(api);
-        return openAPIProcessor.getUpdatedSwaggerFromApi(existingSwagger, isJSONIn, isJSONOut, port, projectPath);
+        return openAPIProcessor.getUpdatedSwaggerFromApi(existingSwagger, isJSONIn, isJSONOut, hostname, port, projectPath);
     }
 }
