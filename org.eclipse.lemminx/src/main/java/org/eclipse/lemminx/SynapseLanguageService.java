@@ -41,6 +41,7 @@ import org.eclipse.lemminx.customservice.synapse.dataService.DynamicClassLoader;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenerator;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverResponseParams;
+import org.eclipse.lemminx.customservice.synapse.dataService.MappingsGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.ModifyDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.db.DBConnectionTestParams;
@@ -786,6 +787,13 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     public CompletableFuture<List<String>> pdfToImagesBase64(PdfToImagesRequest param) {
 
     	return CompletableFuture.supplyAsync(() -> Utils.pdfToImage(param.getBase64()));
+    }
+
+    @Override
+    public CompletableFuture<List<List<Object>>> getInputOutputMappings(MappingsGenRequestParams param) {
+
+        return CompletableFuture.supplyAsync(() -> Constant.INPUT.equals(param.type) ?
+                QueryGenerator.getInputMappings(param.query) : QueryGenerator.getOutputMappings(param));
     }
 
     public String getProjectUri() {

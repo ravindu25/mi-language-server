@@ -14,10 +14,20 @@
 
 package org.eclipse.lemminx.customservice.synapse.dataService;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Logger;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Types;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -196,6 +206,141 @@ public class QueryGenerateUtils {
         qnameTypeMap.put(Types.BINARY, "base64Binary");
         qnameTypeMap.put(Types.BLOB, "base64Binary");
         qnameTypeMap.put(Types.DATE, "date");
+    }
+
+    /**
+     * Extract input columns from the given SQL query.
+     *
+     * @param query SQL query string
+     *
+     * @return List of input column names
+     */
+    public static List<String> getInputColumns(String query) {
+        List<String> columns = new ArrayList<>();
+
+        if (query == null || query.trim().isEmpty()) {
+            return columns;
+        }
+
+        String lower = query.toLowerCase().trim();
+
+        // Handle SELECT ... WHERE ...
+        if (lower.contains("select") && lower.contains("from") && lower.contains("where")) {
+            String wherePart = query.substring(lower.lastIndexOf("where") + 5).trim();
+            String[] conditions = wherePart.split("(?i)\\s+and\\s+|\\s+or\\s+");
+
+            for (String cond : conditions) {
+                if (cond.contains("=")) {
+                    columns.add(cond.split("=")[0].trim());
+                }
+            }
+        }
+
+        // Handle INSERT INTO ... VALUES (...)
+        else if (lower.contains("insert") && lower.contains("into") && lower.contains("values")) {
+            Pattern pattern = Pattern.compile("\\(([^)]+)\\)");
+            Matcher matcher = pattern.matcher(query);
+
+            if (matcher.find()) {
+                String inside = matcher.group(1);
+                inside = inside.replace(":", "");
+                String[] parts = inside.split(",");
+
+                for (String part : parts) {
+                    columns.add(part.trim());
+                }
+            }
+        }
+
+        // Handle UPDATE ... SET ... WHERE ...
+        else if (lower.contains("update") && lower.contains("set")) {
+            String setPart = query.substring(lower.indexOf("set") + 3);
+            setPart = setPart.replaceAll("(?i)where", ",");
+
+            String[] parts = setPart.split(",");
+
+            for (String part : parts) {
+                if (part.contains("=")) {
+                    columns.add(part.split("=")[0].trim());
+                }
+            }
+        }
+
+        // Handle DELETE FROM ... WHERE ...
+        else if (lower.contains("delete") && lower.contains("from") && lower.contains("where")) {
+            String wherePart = query.substring(lower.lastIndexOf("where") + 5);
+            String[] conditions = wherePart.split("(?i)\\s+and\\s+|\\s+or\\s+");
+
+            for (String cond : conditions) {
+                if (cond.contains("=")) {
+                    columns.add(cond.split("=")[0].trim());
+                }
+            }
+        }
+
+        return columns;
+    }
+
+    /**
+     * Extract output columns from the given SQL query.
+     *
+     * @param query SQL query string
+     * @param connection JDBC connection to execute the query if needed
+     *
+     * @return Map of output column names and their types
+     * @throws SQLException if a database access error occurs
+     */
+    public static Map<String, String> getOutputColumns(String query, Connection connection) throws SQLException {
+        Map<String, String> columns = new LinkedHashMap<>();
+
+        if (query == null || query.trim().isEmpty()) {
+            return columns;
+        }
+
+        String lower = query.toLowerCase();
+
+        // Ignore INSERT, UPDATE and DELETE
+        if (!lower.startsWith("select")) {
+            return columns;
+        }
+
+        if (lower.contains("select") && lower.contains("from")) {
+            int selectIndex = lower.lastIndexOf("select") + 6;
+            int fromIndex = lower.lastIndexOf("from");
+
+            if (selectIndex < fromIndex) {
+                String mappingPart = query.substring(selectIndex, fromIndex).trim();
+                String[] parts = mappingPart.split(",");
+
+                // Handle SELECT *
+                if (parts.length == 1 && parts[0].trim().equals("*")) {
+                    if (connection != null) {
+                        try (PreparedStatement stmt = connection.prepareStatement(
+                                query.replaceAll("(?i)\\s+where\\s+.*$", ""))) {
+                            ResultSetMetaData meta = stmt.getMetaData();
+
+                            int columnCount = meta.getColumnCount();
+                            for (int i = 1; i <= columnCount; i++) {
+                                columns.put(meta.getColumnLabel(i), qnameTypeMap.get(meta.getColumnType(i)));
+                            }
+                        } catch (SQLException e) {
+                            LOGGER.log(Level.SEVERE, "Error retrieving columns for the query." + e);
+                            throw e;
+                        }
+                    } else {
+                        LOGGER.log(Level.SEVERE,"Connection is null, cannot retrieve columns for SELECT * query.");
+                        throw new SQLException("Cannot execute select query as the connection is null.");
+                    }
+                }
+                // Handle SELECT col1, col2, ...
+                else {
+                    for (String part : parts) {
+                        columns.put(part.trim(), "string");
+                    }
+                }
+            }
+        }
+        return columns;
     }
 
 }

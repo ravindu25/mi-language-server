@@ -33,6 +33,7 @@ import org.eclipse.lemminx.customservice.synapse.connectors.generate.ConnectorGe
 import org.eclipse.lemminx.customservice.synapse.connectors.generate.ConnectorGeneratorResponse;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverResponseParams;
+import org.eclipse.lemminx.customservice.synapse.dataService.MappingsGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.ModifyDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.db.DBConnectionTestParams;
@@ -294,4 +295,7 @@ public interface ISynapseLanguageService {
 
     @JsonRequest
     CompletableFuture<DependencyStatusResponse> getDependencyStatusList();
+
+    @JsonRequest
+    CompletableFuture<List<List<Object>>> getInputOutputMappings(MappingsGenRequestParams param);
 }

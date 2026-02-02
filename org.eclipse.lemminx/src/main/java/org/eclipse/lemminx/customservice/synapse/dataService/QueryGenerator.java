@@ -245,6 +245,66 @@ public class QueryGenerator {
     }
 
     /**
+     * Generate input mappings for a query
+     *
+     * @param query SQL query string
+     *
+     * @return List of input mappings for the query
+     */
+    public static List<List<Object>> getInputMappings(String query) {
+
+        List<String> columns = QueryGenerateUtils.getInputColumns(query);
+        List<List<Object>> mappingsList = new ArrayList<>();
+        for (String column : columns) {
+            mappingsList.add(Arrays.asList(column, column, "SCALAR", "STRING", "", "IN", 0, new ArrayList<>()));
+        }
+        return mappingsList;
+    }
+
+    /**
+     * Generate output mappings for a query
+     *
+     * @param requestParams SQL query and connection parameters object
+     *
+     * @return List of output mappings for the query
+     */
+    public static List<List<Object>> getOutputMappings(MappingsGenRequestParams requestParams) {
+
+        Connection connection = null;
+        List<List<Object>> mappingsList = new ArrayList<>();
+
+        if (StringUtils.isNotBlank(requestParams.className)) {
+            DBConnectionTester dbConnectionTester = new DBConnectionTester();
+            try {
+                connection = dbConnectionTester.getConnection(requestParams.url, requestParams.username,
+                        requestParams.password, requestParams.className);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error occurred while creating DB connection.", e);
+            }
+        }
+        try {
+            Map<String, String> columns = QueryGenerateUtils.getOutputColumns(requestParams.query, connection);
+            for (Map.Entry<String, String> column : columns.entrySet()) {
+                mappingsList.add(Arrays.asList("Element", "", new ArrayList<>(), "Column",
+                        column.getKey().substring(0, 1).toUpperCase() + column.getKey().substring(1), "", "",
+                        column.getKey(), "", "Scalar", "", column.getValue(), false, "", "", "Scalar", false, false));
+            }
+            return mappingsList;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error occurred while generating output mappings for query.", e);
+            return null;
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (SQLException e) {
+                    LOGGER.log(Level.SEVERE, "Error while closing DB connection.", e);
+                }
+            }
+        }
+    }
+
+    /**
      * Generate resource and query for select all operation
      *
      * @param doc DOM document with resources and queries
