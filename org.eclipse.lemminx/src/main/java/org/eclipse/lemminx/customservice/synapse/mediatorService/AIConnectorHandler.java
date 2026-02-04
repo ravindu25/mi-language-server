@@ -14,6 +14,8 @@
 
 package org.eclipse.lemminx.customservice.synapse.mediatorService;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -21,9 +23,12 @@ import com.google.gson.JsonPrimitive;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.lemminx.commons.BadLocationException;
 import org.eclipse.lemminx.customservice.synapse.connectors.ConnectorHolder;
+import org.eclipse.lemminx.customservice.synapse.connectors.entity.Connection;
+import org.eclipse.lemminx.customservice.synapse.connectors.entity.ConnectionParameter;
 import org.eclipse.lemminx.customservice.synapse.connectors.entity.ConnectorAction;
 import org.eclipse.lemminx.customservice.synapse.connectors.entity.OperationParameter;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.DocumentTextEdit;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MCPToolResponse;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.SynapseConfigResponse;
 import org.eclipse.lemminx.customservice.synapse.resourceFinder.NewProjectResourceFinder;
 import org.eclipse.lemminx.customservice.synapse.resourceFinder.pojo.Resource;
@@ -45,14 +50,24 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.io.StringWriter;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.net.http.HttpRequest;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -73,6 +88,12 @@ public class AIConnectorHandler {
     private static final String FUNCTION_PARAM_PREFIX = "${params.functionParams.";
     private static final String FROM_AI = "fromAI";
     private static final String AI_CONNECTOR_MUSTACHE_TEMPLATE_NAME = "AIConnector";
+    private static final String MCP_MEDIATOR = "ai.mcptools";
+    private static final String MCP_CONNECTION = "mcpConnection";
+    private static final String IS_MCP = "isMCP";
+    private static final String ERROR = "error";
+    private static final String SERVER_URL = "serverUrl";
+    private static final String ACCESS_TOKEN = "accessToken";
     private static final Path TEMPLATE_FOLDER_PATH = Path.of("src", "main", "wso2mi", "artifacts", "templates");
     Set<String> TOOL_EDIT_FIELDS = Set.of(TOOL_NAME, TOOL_DESCRIPTION, TOOL_RESULT_EXPRESSION);
     private final MediatorHandler mediatorHandler;
@@ -180,42 +201,54 @@ public class AIConnectorHandler {
     }
 
     private SynapseConfigResponse addAIAgentTool(String documentUri, Range range, String mediator,
-                                                 Map<String, Object> data, List<String> dirtyFields) {
+                                                 Map<String, Object> data, List<String> dirtyFields) throws BadLocationException, IOException {
 
         if (StringUtils.isEmpty(mediator)) {
             return null;
         }
+        boolean isMCP = MCP_MEDIATOR.equals(mediator);
+        String sequenceTemplateName = null;
         SynapseConfigResponse agentEditResponse = new SynapseConfigResponse();
-        String toolName = data.get(TOOL_NAME) != null ? data.get(TOOL_NAME).toString() : mediator;
-        String sequenceTemplateName = getSequenceTemplateName(toolName);
+        if (!isMCP) {
+            String toolName = data.get(TOOL_NAME) != null ? data.get(TOOL_NAME).toString() : mediator;
+            sequenceTemplateName = getSequenceTemplateName(toolName);
 
-        String sequenceTemplatePath =
-                Path.of(projectUri).resolve(TEMPLATE_FOLDER_PATH).resolve(sequenceTemplateName + ".xml").toString();
-        Map<String, Map<String, String>> templateParameters = new HashMap<>();
+            String sequenceTemplatePath =
+                    Path.of(projectUri).resolve(TEMPLATE_FOLDER_PATH).resolve(sequenceTemplateName + ".xml").toString();
+            Map<String, Map<String, String>> templateParameters = new HashMap<>();
 
-        processAIValues(data, templateParameters);
+            processAIValues(data, templateParameters);
 
-        // Replace overwrite body as false as we need the mediator response in the variable.
-        data.replace(Constant.OVERWRITE_BODY, false);
+            // Replace overwrite body as false as we need the mediator response in the variable.
+            data.replace(Constant.OVERWRITE_BODY, false);
 
-        // Generate mediator/connector (tool) xml
-        SynapseConfigResponse mediatorEdits =
-                mediatorHandler.generateSynapseConfig(sequenceTemplatePath, range, mediator, data, dirtyFields);
-        if (mediatorEdits == null || mediatorEdits.getTextEdits() == null || mediatorEdits.getTextEdits().isEmpty()) {
-            LOGGER.log(Level.SEVERE, "Error while generating mediator edits for the tool, {0}", mediator);
-            return null;
+            // Generate mediator/connector (tool) xml
+            SynapseConfigResponse mediatorEdits =
+                    mediatorHandler.generateSynapseConfig(sequenceTemplatePath, range, mediator, data, dirtyFields);
+            if (mediatorEdits == null || mediatorEdits.getTextEdits() == null || mediatorEdits.getTextEdits().isEmpty()) {
+                LOGGER.log(Level.SEVERE, "Error while generating mediator edits for the tool, {0}", mediator);
+                return null;
+            }
+
+            // Generate sequence template xml
+            String templateXml = generateSequenceTemplate(mediatorEdits, templateParameters, sequenceTemplateName, data);
+            DocumentTextEdit sequenceTemplateEdit = new DocumentTextEdit(range, templateXml, sequenceTemplatePath);
+            sequenceTemplateEdit.setCreateNewFile(true);
+            agentEditResponse.addTextEdit(sequenceTemplateEdit);
         }
 
-        // Generate sequence template xml
-        String templateXml = generateSequenceTemplate(mediatorEdits, templateParameters, sequenceTemplateName, data);
-        DocumentTextEdit sequenceTemplateEdit = new DocumentTextEdit(range, templateXml, sequenceTemplatePath);
-        sequenceTemplateEdit.setCreateNewFile(true);
-        agentEditResponse.addTextEdit(sequenceTemplateEdit);
-
+        data.put(IS_MCP, isMCP);
         String toolXml = generateToolXml(data, sequenceTemplateName);
         TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolXml, documentUri);
         agentEditResponse.addTextEdit(toolsEditTextEdit);
 
+        if (isMCP) {
+            DOMDocument document = Utils.getDOMDocument(new File(documentUri));
+            // Increment the character position by 1 to get the tool tag
+            Position position = new Position(range.getStart().getLine(), range.getStart().getCharacter() + 1);
+            DOMNode node = document.findNodeAt(document.offsetAt(position));
+            agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
+        }
         return agentEditResponse;
     }
 
@@ -756,11 +789,13 @@ public class AIConnectorHandler {
         if (node == null || !Constant.TOOL.equals(node.getNodeName())) {
             return null;
         }
+
+        boolean isMCP = MCP_MEDIATOR.equals(mediator);
+
         String templateName = node.getAttribute(Constant.TEMPLATE);
-        if (StringUtils.isEmpty(templateName)) {
+        if (!isMCP && StringUtils.isEmpty(templateName)) {
             return null;
         }
-
 
         // Add tool tag edit
         boolean needToolEdit = dirtyFields.stream().anyMatch(TOOL_EDIT_FIELDS::contains) ||
@@ -768,12 +803,16 @@ public class AIConnectorHandler {
         if (needToolEdit) {
             Map<String, String> toolData = processToolData(data, templateName);
             StringWriter writer = new StringWriter();
+            data.put(IS_MCP, isMCP);
             String toolsEdit = mediatorHandler.getMustacheTemplate(Constant.TOOL).execute(writer, toolData).toString();
             TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsEdit, documentUri);
             agentEditResponse.addTextEdit(toolsEditTextEdit);
+            if (isMCP) {
+                agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
+            }
         }
 
-        boolean needTemplateEdit = dirtyFields.stream().anyMatch(field -> !TOOL_EDIT_FIELDS.contains(field));
+        boolean needTemplateEdit = !isMCP && dirtyFields.stream().anyMatch(field -> !TOOL_EDIT_FIELDS.contains(field));
 
         if (!needTemplateEdit) {
             return agentEditResponse;
@@ -828,4 +867,150 @@ public class AIConnectorHandler {
         Position end = endTagRange != null ? endTagRange.getEnd() : startTagRange.getEnd();
         return new Range(start, end);
     }
+
+    public MCPToolResponse fetchMcpTools(List<Connection> connections, String connectionName) {
+        MCPToolResponse response = new MCPToolResponse();
+
+        try {
+            Connection connection = connections.stream()
+                    .filter(c -> connectionName.equals(c.getName()))
+                    .findFirst()
+                    .orElseThrow(() ->
+                            new IllegalArgumentException("Connection not found: " + connectionName)
+                    );
+
+            String serverUrl = null;
+            String accessToken = null;
+            for (ConnectionParameter param : connection.getParameters()) {
+                if (SERVER_URL.equals(param.getName())) {
+                    serverUrl = param.getValue();
+                } else if (ACCESS_TOKEN.equals(param.getName())) {
+                    accessToken = param.getValue();
+                }
+            }
+            if (serverUrl == null || accessToken == null) {
+                response.error = "ServerUrl or accessToken cannot be fetched from the connection parameters";
+                return response;
+            }
+
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(serverUrl))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept", "*/*")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            "{"
+                            + "\"jsonrpc\":\"2.0\","
+                            + "\"id\":1,"
+                            + "\"method\":\"tools/list\""
+                            + "}"
+                    ))
+                    .build();
+
+            HttpResponse<String> httpResponse = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (httpResponse.statusCode() != 200) {
+                response.error = "Failed to fetch MCP tools. HTTP " + httpResponse.statusCode();
+                return response;
+            }
+
+            BufferedReader reader = new BufferedReader(new StringReader(httpResponse.body()));
+            String line;
+            StringBuilder dataBuffer = new StringBuilder();
+            while ((line = reader.readLine()) != null) {
+                if (line.isEmpty()) {
+                    break;
+                }
+                if (line.startsWith("data:")) {
+                    dataBuffer.append(line.substring(5).trim());
+                }
+            }
+
+            String responseJson = dataBuffer.toString();
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode dataJson = mapper.readTree(responseJson);
+
+            if (dataJson.has(Constant.RESULT) && dataJson.get(Constant.RESULT).has(Constant.TOOLS)) {
+                Map<String, String> tools = new HashMap<>();
+                JsonNode toolsNode = dataJson.get(Constant.RESULT).get(Constant.TOOLS);
+                if (!toolsNode.isArray()) {
+                    response.error = "Invalid MCP response: tools is not an array";
+                    return response;
+                }
+
+                for (JsonNode toolNode : toolsNode) {
+                    String toolName = toolNode.has(Constant.NAME) ? toolNode.get(Constant.NAME).asText() : null;
+                    if (toolName == null) {
+                        continue;
+                    }
+
+                    String description = toolNode.has(Constant.DESCRIPTION)
+                            ? toolNode.get(Constant.DESCRIPTION).asText()
+                            : StringUtils.EMPTY;
+
+                    tools.put(toolName, description);
+                }
+
+                response.tools = tools;
+
+            } else if (dataJson.has(ERROR)) {
+                response.error = dataJson.get(ERROR).toString();
+            } else {
+                response.error = "Unexpected MCP response";
+            }
+
+        } catch (Exception e) {
+            response.error = e.getMessage();
+        }
+
+        return response;
+    }
+
+    private DocumentTextEdit getMcpConnectionConfiguration(DOMNode toolNode, String documentUri, Map<String, Object> data, DOMDocument document) throws BadLocationException {
+        DOMNode toolsNode = toolNode.getParentNode();
+        Set<String> mcpConnections = new HashSet<>();
+        if (toolsNode != null && Constant.TOOLS.equals(toolsNode.getNodeName())) {
+
+            NodeList children = toolsNode.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node child = children.item(i);
+
+                if (child.getNodeType() == Node.ELEMENT_NODE
+                        && Constant.TOOL.equals(child.getNodeName())) {
+
+                    Element tool = (Element) child;
+                    if (tool.hasAttribute(MCP_CONNECTION)) {
+                        mcpConnections.add(tool.getAttribute(MCP_CONNECTION));
+                    }
+                }
+            }
+        }
+        if (data.containsKey(MCP_CONNECTION)) {
+            mcpConnections.add(data.get(MCP_CONNECTION).toString());
+        }
+
+        NodeList mcpNodes = document.getElementsByTagName(MCP_CONNECTION);
+        Range mcpConenctionRange = null;
+        if (mcpNodes.getLength() != 0) {
+            DOMNode mcpConnectionsNode = (DOMNode) mcpNodes.item(0);
+            mcpConenctionRange = new Range(
+                    document.positionAt(mcpConnectionsNode.getStart()),
+                    document.positionAt(mcpConnectionsNode.getEnd())
+            );
+
+        }
+        StringBuilder mcpConnectionConfig = new StringBuilder();
+        mcpConnectionConfig.append("<mcpConnections>\n");
+
+        for (String key : mcpConnections) {
+            mcpConnectionConfig.append("    <mcpConfigKey>")
+                    .append(key)
+                    .append("</mcpConfigKey>\n");
+        }
+
+        mcpConnectionConfig.append("</mcpConnections>");
+
+        return new DocumentTextEdit(mcpConenctionRange, mcpConnectionConfig.toString(), documentUri);
+    }
+
 }

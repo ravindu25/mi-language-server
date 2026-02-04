@@ -58,6 +58,8 @@ import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MediatorRe
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.SynapseConfigRequest;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.SynapseConfigResponse;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.UISchemaRequest;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MCPToolRequest;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MCPToolResponse;
 import org.eclipse.lemminx.customservice.synapse.parser.ConfigDetails;
 import org.eclipse.lemminx.customservice.synapse.parser.DependencyStatusResponse;
 import org.eclipse.lemminx.customservice.synapse.parser.DeployPluginDetails;
@@ -294,4 +296,7 @@ public interface ISynapseLanguageService {
 
     @JsonRequest
     CompletableFuture<DependencyStatusResponse> getDependencyStatusList();
+
+    @JsonRequest
+    CompletableFuture<MCPToolResponse> getMCPTools(MCPToolRequest param);
 }

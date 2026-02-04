@@ -4,6 +4,8 @@
         <{{name}}>{{value}}</{{name}}>
         {{/connections}}
     </connections>
+    {{#supportTools}}<mcpConnections>
+    </mcpConnections>{{/supportTools}}
     {{#parameters}}
     <{{{name}}} {{#value}}{{#namespaces}} xmlns:{{{prefix}}}="{{{uri}}}"{{/namespaces}}>{{#isCDATA}}<![CDATA[{{{value}}}]]>{{/isCDATA}}{{^isCDATA}}{{value}}{{/isCDATA}}{{/value}}</{{{name}}}>
     {{/parameters}}
