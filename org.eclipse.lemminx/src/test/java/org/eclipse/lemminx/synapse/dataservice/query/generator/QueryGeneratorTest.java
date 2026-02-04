@@ -16,6 +16,7 @@ package org.eclipse.lemminx.synapse.dataservice.query.generator;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverResponseParams;
+import org.eclipse.lemminx.customservice.synapse.dataService.MappingsGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenerator;
 import org.eclipse.lemminx.customservice.synapse.db.DBConnectionTester;
@@ -38,11 +39,14 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -63,6 +67,7 @@ public class QueryGeneratorTest {
     private DatabaseMetaData metadata;
     private ResultSetMetaData resultSetMetadata;
     private MockedStatic<DBConnectionTester> dbConnectionTester;
+    private PreparedStatement preparedStatement;
     private Path tempAddSQLDriverFilePath;
     private Path tempUpdateSQLDriverFilePath;
     private static final String ADD_DB_DRIVER = "synapse/query.generator/mysql-connector-j-8.2.0.jar";
@@ -172,7 +177,7 @@ public class QueryGeneratorTest {
     @Test
     @Order(10)
     public void testGenerateDSSQueriesWithValidParams() throws Exception {
-        connection= mock(Connection.class);
+        connection = mock(Connection.class);
         metadata = mock(DatabaseMetaData.class);
         resultSetMetadata = mock(ResultSetMetaData.class);
         dbConnectionTester = mockStatic(DBConnectionTester.class);
@@ -213,7 +218,7 @@ public class QueryGeneratorTest {
     @Test
     @Order(11)
     public void testGenerateDSSQueriesWithInvalidParams() {
-        connection= mock(Connection.class);
+        connection = mock(Connection.class);
         metadata = mock(DatabaseMetaData.class);
         dbConnectionTester = mockStatic(DBConnectionTester.class);
         dbConnectionTester.when(() -> DBConnectionTester.getConnection(any(), any(), any(), any())).thenReturn(null);
@@ -227,7 +232,7 @@ public class QueryGeneratorTest {
     @Order(12)
     void getTableListWithValidParams() throws SQLException {
 
-        connection= mock(Connection.class);
+        connection = mock(Connection.class);
         metadata = mock(DatabaseMetaData.class);
         resultSetMetadata = mock(ResultSetMetaData.class);
         dbConnectionTester = mockStatic(DBConnectionTester.class);
@@ -277,7 +282,7 @@ public class QueryGeneratorTest {
     @Order(13)
     void getTableListWithInvalidParams() {
 
-        connection= mock(Connection.class);
+        connection = mock(Connection.class);
         metadata = mock(DatabaseMetaData.class);
         dbConnectionTester = mockStatic(DBConnectionTester.class);
         dbConnectionTester.when(() -> DBConnectionTester.getConnection(any(), any(), any(), any())).thenReturn(null);
@@ -285,6 +290,108 @@ public class QueryGeneratorTest {
         dbConnectionTester.close();
 
         assertEquals(0, result.size());
+    }
+
+    @Test
+    @Order(14)
+    void testGetInputColumnsWithInsertQuery() {
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        List<String> columns = Arrays.asList("name", "school", "grade");
+        for (String column : columns) {
+            expectedResult.add(Arrays.asList(column, column, "SCALAR", "STRING", "", "IN", 0, new ArrayList<>()));
+        }
+        List<List<Object>> result = QueryGenerator.getInputMappings("INSERT INTO student (name, school, grade) VALUES (:name, :school, :grade)");
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    @Order(15)
+    void testGetInputColumnsWithSelectQuery() {
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        List<String> columns = Arrays.asList("id", "grade");
+        for (String column : columns) {
+            expectedResult.add(Arrays.asList(column, column, "SCALAR", "STRING", "", "IN", 0, new ArrayList<>()));
+        }
+        List<List<Object>> result = QueryGenerator.getInputMappings("SELECT name, school FROM student WHERE id = :id AND grade = :grade");
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    @Order(16)
+    void testGetInputColumnsWithUpdateQuery() {
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        List<String> columns = Arrays.asList("name", "school", "grade", "id");
+        for (String column : columns) {
+            expectedResult.add(Arrays.asList(column, column, "SCALAR", "STRING", "", "IN", 0, new ArrayList<>()));
+        }
+        List<List<Object>> result = QueryGenerator.getInputMappings("UPDATE student SET name = :name, school = :school, grade = :grade WHERE id = :id");
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    @Order(17)
+    void testGetInputColumnsWithDeleteQuery() {
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        List<String> columns = Arrays.asList("name", "grade");
+        for (String column : columns) {
+            expectedResult.add(Arrays.asList(column, column, "SCALAR", "STRING", "", "IN", 0, new ArrayList<>()));
+        }
+        List<List<Object>> result = QueryGenerator.getInputMappings("DELETE FROM student WHERE name = :name and grade = :grade");
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    @Order(18)
+    void testGetOutputColumnsWithoutDbConnection() {
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        List<String> columns = Arrays.asList("name", "school");
+        for (String column : columns) {
+            expectedResult.add(Arrays.asList("Element", "", new ArrayList<>(), "Column", column.substring(0, 1).toUpperCase() + column.substring(1), "", "", column, "", "Scalar", "", "string", false, "", "", "Scalar", false, false));
+        }
+        MappingsGenRequestParams requestParams = new MappingsGenRequestParams();
+        requestParams.query = "SELECT name, school from student WHERE id = :id";
+        List<List<Object>> result = QueryGenerator.getOutputMappings(requestParams);
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    @Order(19)
+    void testGetOutputColumnsWithDbConnection() throws SQLException {
+
+        connection = mock(Connection.class);
+        metadata = mock(DatabaseMetaData.class);
+        resultSetMetadata = mock(ResultSetMetaData.class);
+        preparedStatement = mock(PreparedStatement.class);
+        dbConnectionTester = mockStatic(DBConnectionTester.class);
+        dbConnectionTester.when(() -> DBConnectionTester.getConnection(any(), any(), any(), any())).thenReturn(connection);
+        when(connection.prepareStatement(any())).thenReturn(preparedStatement);
+        when(preparedStatement.getMetaData()).thenReturn(resultSetMetadata);
+        when(resultSetMetadata.getColumnCount()).thenReturn(3);
+        when(resultSetMetadata.getColumnLabel(1)).thenReturn("id");
+        when(resultSetMetadata.getColumnLabel(2)).thenReturn("name");
+        when(resultSetMetadata.getColumnLabel(3)).thenReturn("school");
+        when(resultSetMetadata.getColumnType(1)).thenReturn(2);
+        when(resultSetMetadata.getColumnType(2)).thenReturn(1);
+        when(resultSetMetadata.getColumnType(3)).thenReturn(1);
+
+        List<List<Object>> expectedResult = new ArrayList<>();
+        LinkedHashMap<String, String> columns = new LinkedHashMap<>();
+        columns.put("id", "integer");
+        columns.put("name", "string");
+        columns.put("school", "string");
+        for (Map.Entry<String, String> column : columns.entrySet()) {
+            expectedResult.add(Arrays.asList("Element", "", new ArrayList<>(), "Column", column.getKey().substring(0, 1).toUpperCase() + column.getKey().substring(1), "", "", column.getKey(), "", "Scalar", "", column.getValue(), false, "", "", "Scalar", false, false));
+        }
+        MappingsGenRequestParams requestParams = new MappingsGenRequestParams();
+        requestParams.query = "SELECT * from student WHERE id = :id";
+        requestParams.className = "com.mysql.jdbc.Driver";
+        List<List<Object>> result = QueryGenerator.getOutputMappings(requestParams);
+        assertEquals(expectedResult, result);
     }
 
     private void copyResourceToTemp(Path destinationPath, String resource) throws IOException {

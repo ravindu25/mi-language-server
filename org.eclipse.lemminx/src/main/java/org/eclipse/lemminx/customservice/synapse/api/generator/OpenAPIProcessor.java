@@ -80,11 +80,11 @@ public class OpenAPIProcessor {
      * @param isJSON response data type JSON / YAML.
      * @return OpenAPI definition as string.
      */
-    public String getOpenAPISpecification(final boolean isJSON, final int port) {
+    public String getOpenAPISpecification(final boolean isJSON, final String hostname, final int port) {
 
         final OpenAPI openAPI = new OpenAPI();
         addInfoSection(openAPI);
-        addServersSection(openAPI, port, StringUtils.EMPTY);
+        addServersSection(openAPI, hostname, port, StringUtils.EMPTY);
         // Re-use the previous implementation to get resource details of the API.
         final Map<String, Object> dataMap = GenericApiObjectDefinition.getPathMap(api);
         Paths paths = new Paths();
@@ -195,7 +195,7 @@ public class OpenAPIProcessor {
                 }
             }
         } else {
-            addServersSection(openAPI, SwaggerConstants.DEFAULT_HTTP_PORT, StringUtils.EMPTY);
+            addServersSection(openAPI, SwaggerConstants.DEFAULT_HOST, SwaggerConstants.DEFAULT_HTTP_PORT, StringUtils.EMPTY);
         }
     }
 
@@ -204,7 +204,7 @@ public class OpenAPIProcessor {
      *
      * @param openAPI OpenApi object.
      */
-    private void addServersSection(OpenAPI openAPI, int port, String projectPath) {
+    private void addServersSection(OpenAPI openAPI, String hostname, int port, String projectPath) {
 
         String serverVersionPath = api.getContext().startsWith("/") ? "" : "/";
         if (StringUtils.isNotBlank(projectPath)){
@@ -227,6 +227,9 @@ public class OpenAPIProcessor {
         if (StringUtils.isNotBlank(api.getHostname()) && !"-1".equals(api.getPort())) {
             httpHost = api.getHostname() + ":" + port;
             httpsHost = api.getHostname() + ":" + (SwaggerConstants.DEFAULT_HTTPS_PORT + offset);
+        } else if (StringUtils.isNotBlank(hostname)) {
+            httpHost = hostname + ":" + port;
+            httpsHost = hostname + ":" + (SwaggerConstants.DEFAULT_HTTPS_PORT + offset);
         } else {
             httpHost = SwaggerConstants.DEFAULT_HOST + ":" + port;
             httpsHost = SwaggerConstants.DEFAULT_HOST + ":" + (SwaggerConstants.DEFAULT_HTTPS_PORT + offset);
@@ -354,7 +357,8 @@ public class OpenAPIProcessor {
      * @param isJSONOut       output swagger data type JSON / YAML.
      * @return updated swagger definition as string.
      */
-    public String getUpdatedSwaggerFromApi(String existingSwagger, boolean isJSONIn, boolean isJSONOut, int port, String projectPath)
+    public String getUpdatedSwaggerFromApi(String existingSwagger, boolean isJSONIn, boolean isJSONOut,
+                                           String hostname, int port, String projectPath)
             throws APIGenException {
 
         if (api == null) {
@@ -506,7 +510,7 @@ public class OpenAPIProcessor {
         // Adding the new path map
         openAPI.setPaths(newPaths);
         updateInfoSection(openAPI);
-        addServersSection(openAPI, port, projectPath);
+        addServersSection(openAPI, hostname, port, projectPath);
 
         try {
             if (isJSONOut) {

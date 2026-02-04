@@ -16,6 +16,7 @@ package org.eclipse.lemminx;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.lemminx.customservice.ISynapseLanguageService;
 import org.eclipse.lemminx.customservice.SynapseLanguageClientAPI;
 import org.eclipse.lemminx.customservice.synapse.CodeDiagnosticRequest;
@@ -40,6 +41,7 @@ import org.eclipse.lemminx.customservice.synapse.dataService.DynamicClassLoader;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenerator;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.CheckDBDriverResponseParams;
+import org.eclipse.lemminx.customservice.synapse.dataService.MappingsGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.ModifyDriverRequestParams;
 import org.eclipse.lemminx.customservice.synapse.dataService.QueryGenRequestParams;
 import org.eclipse.lemminx.customservice.synapse.db.DBConnectionTestParams;
@@ -335,7 +337,8 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     @Override
     public CompletableFuture<ResourceResponse> availableResources(ResourceParam param) {
 
-        ResourceResponse response = resourceFinder.getAvailableResources(projectUri, param.resourceType);
+        ResourceResponse response = resourceFinder.getAvailableResources(
+                StringUtils.isNotBlank(param.projectPath) ? param.projectPath : projectUri, param.resourceType);
         return CompletableFuture.supplyAsync(() -> response);
     }
 
@@ -789,6 +792,13 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     	return CompletableFuture.supplyAsync(() -> Utils.pdfToImage(param.getBase64()));
     }
 
+    @Override
+    public CompletableFuture<List<List<Object>>> getInputOutputMappings(MappingsGenRequestParams param) {
+
+        return CompletableFuture.supplyAsync(() -> Constant.INPUT.equals(param.type) ?
+                QueryGenerator.getInputMappings(param.query) : QueryGenerator.getOutputMappings(param));
+    }
+  
     @Override
     public CompletableFuture<MCPToolResponse> getMCPTools(MCPToolRequest param) {
 
