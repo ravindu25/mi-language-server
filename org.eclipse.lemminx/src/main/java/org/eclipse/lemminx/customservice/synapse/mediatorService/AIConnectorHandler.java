@@ -88,7 +88,7 @@ public class AIConnectorHandler {
     private static final String FUNCTION_PARAM_PREFIX = "${params.functionParams.";
     private static final String FROM_AI = "fromAI";
     private static final String AI_CONNECTOR_MUSTACHE_TEMPLATE_NAME = "AIConnector";
-    private static final String MCP_MEDIATOR = "ai.mcptools";
+    private static final String MCP_MEDIATOR = "ai.mcpTools";
     private static final String MCP_CONNECTION = "mcpConnection";
     private static final String IS_MCP = "isMCP";
     private static final String ERROR = "error";
