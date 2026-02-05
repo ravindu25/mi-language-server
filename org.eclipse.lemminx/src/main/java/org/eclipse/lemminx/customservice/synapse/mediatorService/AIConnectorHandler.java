@@ -92,8 +92,8 @@ public class AIConnectorHandler {
     private static final String MCP_CONNECTION = "mcpConnection";
     private static final String IS_MCP = "isMCP";
     private static final String ERROR = "error";
-    private static final String SERVER_URL = "serverUrl";
-    private static final String ACCESS_TOKEN = "accessToken";
+    private static final String SERVER_URL = "mcpServerUrl";
+    private static final String ACCESS_TOKEN = "bearerToken";
     private static final Path TEMPLATE_FOLDER_PATH = Path.of("src", "main", "wso2mi", "artifacts", "templates");
     Set<String> TOOL_EDIT_FIELDS = Set.of(TOOL_NAME, TOOL_DESCRIPTION, TOOL_RESULT_EXPRESSION);
     private final MediatorHandler mediatorHandler;
@@ -335,6 +335,10 @@ public class AIConnectorHandler {
         Map<String, String> toolData = new HashMap<>();
         toolData.put(Constant.NAME, data.get(TOOL_NAME).toString());
         toolData.put(Constant.TEMPLATE, sequenceTemplateName);
+        if (data.containsKey(MCP_CONNECTION)) {
+            toolData.put(MCP_CONNECTION, data.get(MCP_CONNECTION).toString());
+            toolData.put(IS_MCP, Constant.TRUE);
+        }
         if (data.containsKey(TOOL_RESULT_EXPRESSION) && data.get(TOOL_RESULT_EXPRESSION) instanceof Map<?, ?>) {
             Map<?, ?> expression = (Map<?, ?>) data.get(TOOL_RESULT_EXPRESSION);
             Object value = expression.get(Constant.VALUE);
