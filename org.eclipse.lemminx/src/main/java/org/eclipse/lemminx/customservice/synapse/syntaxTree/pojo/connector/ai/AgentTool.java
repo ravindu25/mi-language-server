@@ -25,6 +25,8 @@ public class AgentTool extends STNode {
     private String resultExpression;
     private Mediator mediator;
     private String templatePath;
+    private String mcpConnection;
+    private boolean isMcpTool;
 
     public String getName() {
 
@@ -84,5 +86,23 @@ public class AgentTool extends STNode {
     public void setResultExpression(String resultExpression) {
 
         this.resultExpression = resultExpression;
+    }
+
+    public void setMcpConnection(String mcpConnection) {
+
+        this.mcpConnection = mcpConnection;
+    }
+
+    public String getMcpConnection() {
+
+        return mcpConnection;
+    }
+
+    public boolean isMcpTool() {
+        return isMcpTool;
+    }
+
+    public void setMcpTool(boolean mcpTool) {
+        isMcpTool = mcpTool;
     }
 }

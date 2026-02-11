@@ -65,21 +65,31 @@ public class AIAgentConnectorFactory extends AIConnectorFactory {
             List<DOMNode> toolElements = toolsElement.getChildren();
             for (DOMNode toolElement : toolElements) {
                 if (toolElement instanceof DOMElement && Constant.TOOL.equals(toolElement.getNodeName())) {
-                    String templateName = toolElement.getAttribute(Constant.TEMPLATE);
-                    try {
-                        String templatePath = ConfigFinder.getTemplatePath(templateName, getProjectPath());
-                        Mediator mediator = getMediatorFromTemplate(templatePath);
+                    if(toolElement.hasAttribute(Constant.TYPE)){
                         AgentTool agentTool = new AgentTool();
                         agentTool.elementNode((DOMElement) toolElement);
                         agentTool.setName(toolElement.getAttribute(Constant.NAME));
-                        agentTool.setTemplate(templateName);
-                        agentTool.setTemplatePath(templatePath);
                         agentTool.setDescription(toolElement.getAttribute(Constant.DESCRIPTION));
-                        agentTool.setResultExpression(toolElement.getAttribute(Constant.RESULT_EXPRESSION));
-                        agentTool.setMediator(mediator);
+                        agentTool.setMcpConnection(toolElement.getAttribute(Constant.MCP_CONNECTION));
+                        agentTool.setMcpTool(true);
                         agentTools.addTool(agentTool);
-                    } catch (IOException e) {
-                        LOGGER.log(Level.SEVERE, "Error while reading the template file", e);
+                    } else {
+                        String templateName = toolElement.getAttribute(Constant.TEMPLATE);
+                        try {
+                            String templatePath = ConfigFinder.getTemplatePath(templateName, getProjectPath());
+                            Mediator mediator = getMediatorFromTemplate(templatePath);
+                            AgentTool agentTool = new AgentTool();
+                            agentTool.elementNode((DOMElement) toolElement);
+                            agentTool.setName(toolElement.getAttribute(Constant.NAME));
+                            agentTool.setTemplate(templateName);
+                            agentTool.setTemplatePath(templatePath);
+                            agentTool.setDescription(toolElement.getAttribute(Constant.DESCRIPTION));
+                            agentTool.setResultExpression(toolElement.getAttribute(Constant.RESULT_EXPRESSION));
+                            agentTool.setMediator(mediator);
+                            agentTools.addTool(agentTool);
+                        } catch (IOException e) {
+                            LOGGER.log(Level.SEVERE, "Error while reading the template file", e);
+                        }
                     }
                 }
             }

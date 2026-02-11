@@ -655,6 +655,7 @@ public class Constant {
         put("4.4.0", "4.4.0");
         put("4.5.0", "4.4.0");
     }};
+    public static final String MCP_CONNECTION = "mcpConnection";
 
     static {
         // AI Connection to Display Name bi-Mapping
