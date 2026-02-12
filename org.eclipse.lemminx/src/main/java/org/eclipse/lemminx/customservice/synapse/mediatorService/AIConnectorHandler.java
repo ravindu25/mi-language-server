@@ -90,6 +90,9 @@ public class AIConnectorHandler {
     private static final String AI_CONNECTOR_MUSTACHE_TEMPLATE_NAME = "AIConnector";
     private static final String MCP_MEDIATOR = "ai.mcpTools";
     private static final String MCP_CONNECTION = "mcpConnection";
+    private static final String MCP_CONNECTIONS = "mcpConnections";
+    private static final String CONFIG_KEY = "configKey";
+    private static final String MCP_TOOLS_SELECTION = "mcpToolsSelection";
     private static final String IS_MCP = "isMCP";
     private static final String ERROR = "error";
     private static final String SERVER_URL = "mcpServerUrl";
@@ -238,9 +241,29 @@ public class AIConnectorHandler {
         }
 
         data.put(IS_MCP, isMCP);
-        String toolXml = generateToolXml(data, sequenceTemplateName);
-        TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolXml, documentUri);
-        agentEditResponse.addTextEdit(toolsEditTextEdit);
+        String connectionName = StringUtils.EMPTY;
+        if (data.containsKey(CONFIG_KEY) && data.get(CONFIG_KEY) instanceof String) {
+            connectionName = data.get(CONFIG_KEY).toString();
+        }
+        if (data.containsKey(MCP_TOOLS_SELECTION) && data.get(MCP_TOOLS_SELECTION) instanceof List<?>) {
+            List<String> mcpToolsSelection = (List<String>) data.get(MCP_TOOLS_SELECTION);
+            StringBuilder toolsXml = new StringBuilder();
+
+            for (String toolSelection : mcpToolsSelection) {
+                Map<String, Object> toolData = new HashMap<>();
+                toolData.put(TOOL_NAME, toolSelection);
+                toolData.put(MCP_CONNECTION, connectionName);
+                String toolXml = generateToolXml(toolData, sequenceTemplateName);
+                toolsXml.append(toolXml);
+            }
+
+            TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsXml.toString(), documentUri);
+            agentEditResponse.addTextEdit(toolsEditTextEdit);
+        } else {
+            String toolXml = generateToolXml(data, sequenceTemplateName);
+            TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolXml, documentUri);
+            agentEditResponse.addTextEdit(toolsEditTextEdit);
+        }
 
         if (isMCP) {
             DOMDocument document = Utils.getDOMDocument(new File(documentUri));
@@ -355,7 +378,11 @@ public class AIConnectorHandler {
             String resultExpression = String.format("${vars.%s.payload}", variableName);
             toolData.put(RESULT_EXPRESSION, resultExpression);
         }
-        toolData.put(Constant.DESCRIPTION, data.get(TOOL_DESCRIPTION).toString());
+        if (data.containsKey(TOOL_DESCRIPTION) && data.get(TOOL_DESCRIPTION) != null) {
+            toolData.put(Constant.DESCRIPTION, data.get(TOOL_DESCRIPTION).toString());
+        } else {
+            toolData.put(Constant.DESCRIPTION, StringUtils.EMPTY);
+        }
         return toolData;
     }
 
@@ -989,19 +1016,20 @@ public class AIConnectorHandler {
                 }
             }
         }
-        if (data.containsKey(MCP_CONNECTION)) {
-            mcpConnections.add(data.get(MCP_CONNECTION).toString());
+        if (data.containsKey(CONFIG_KEY)) {
+            mcpConnections.add(data.get(CONFIG_KEY).toString());
         }
-
-        NodeList mcpNodes = document.getElementsByTagName(MCP_CONNECTION);
-        Range mcpConenctionRange = null;
-        if (mcpNodes.getLength() != 0) {
-            DOMNode mcpConnectionsNode = (DOMNode) mcpNodes.item(0);
+        Range mcpConenctionRange;
+        DOMNode mcpConnectionsNode = Utils.getChildNodeByName(toolsNode, MCP_CONNECTIONS);
+        if (mcpConnectionsNode != null) {
             mcpConenctionRange = new Range(
                     document.positionAt(mcpConnectionsNode.getStart()),
                     document.positionAt(mcpConnectionsNode.getEnd())
             );
-
+        } else {
+            // Default to end of toolsNode if mcpConnectionsNode doesn't exist
+            Position insertPosition = document.positionAt(toolsNode.getEnd());
+            mcpConenctionRange = new Range(insertPosition, insertPosition);
         }
         StringBuilder mcpConnectionConfig = new StringBuilder();
         mcpConnectionConfig.append("<mcpConnections>\n");
