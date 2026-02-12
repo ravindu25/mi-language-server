@@ -43,8 +43,10 @@ import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.template.Templa
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.template.TemplateParameter;
 import org.eclipse.lemminx.customservice.synapse.utils.ConfigFinder;
 import org.eclipse.lemminx.customservice.synapse.utils.Constant;
+import org.eclipse.lemminx.customservice.synapse.utils.UISchemaMapper;
 import org.eclipse.lemminx.customservice.synapse.utils.Utils;
 import org.eclipse.lemminx.dom.DOMDocument;
+import org.eclipse.lemminx.dom.DOMElement;
 import org.eclipse.lemminx.dom.DOMNode;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
@@ -98,7 +100,7 @@ public class AIConnectorHandler {
     private static final String SERVER_URL = "mcpServerUrl";
     private static final String ACCESS_TOKEN = "bearerToken";
     private static final Path TEMPLATE_FOLDER_PATH = Path.of("src", "main", "wso2mi", "artifacts", "templates");
-    Set<String> TOOL_EDIT_FIELDS = Set.of(TOOL_NAME, TOOL_DESCRIPTION, TOOL_RESULT_EXPRESSION);
+    Set<String> TOOL_EDIT_FIELDS = Set.of(TOOL_NAME, TOOL_DESCRIPTION, TOOL_RESULT_EXPRESSION, MCP_TOOLS_SELECTION);
     private final MediatorHandler mediatorHandler;
     private final String projectUri;
     private final Random randomGenerator = new Random();
@@ -241,21 +243,15 @@ public class AIConnectorHandler {
         }
 
         data.put(IS_MCP, isMCP);
-        String connectionName = StringUtils.EMPTY;
-        if (data.containsKey(CONFIG_KEY) && data.get(CONFIG_KEY) instanceof String) {
-            connectionName = data.get(CONFIG_KEY).toString();
-        }
         if (data.containsKey(MCP_TOOLS_SELECTION) && data.get(MCP_TOOLS_SELECTION) instanceof List<?>) {
-            List<String> mcpToolsSelection = (List<String>) data.get(MCP_TOOLS_SELECTION);
-            StringBuilder toolsXml = new StringBuilder();
-
-            for (String toolSelection : mcpToolsSelection) {
-                Map<String, Object> toolData = new HashMap<>();
-                toolData.put(TOOL_NAME, toolSelection);
-                toolData.put(MCP_CONNECTION, connectionName);
-                String toolXml = generateToolXml(toolData, sequenceTemplateName);
-                toolsXml.append(toolXml);
+            String connectionName = StringUtils.EMPTY;
+            if (data.containsKey(CONFIG_KEY) && data.get(CONFIG_KEY) instanceof String) {
+                connectionName = data.get(CONFIG_KEY).toString();
             }
+
+            List<String> mcpToolsSelection = (List<String>) data.get(MCP_TOOLS_SELECTION);
+
+            String toolsXml = buildMcpToolsXml(mcpToolsSelection, connectionName, sequenceTemplateName);
 
             TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsXml.toString(), documentUri);
             agentEditResponse.addTextEdit(toolsEditTextEdit);
@@ -273,6 +269,26 @@ public class AIConnectorHandler {
             agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
         }
         return agentEditResponse;
+    }
+
+    private String buildMcpToolsXml(List<String> toolSelections, String connectionName, String sequenceTemplateName) {
+
+        if (toolSelections == null || toolSelections.isEmpty()) {
+            return StringUtils.EMPTY;
+        }
+
+        StringBuilder toolsXml = new StringBuilder();
+
+        for (String toolSelection : toolSelections) {
+            Map<String, Object> toolData = new HashMap<>();
+            toolData.put(TOOL_NAME, toolSelection);
+            toolData.put(MCP_CONNECTION, connectionName);
+
+            String toolXml = generateToolXml(toolData, sequenceTemplateName);
+            toolsXml.append(toolXml);
+        }
+
+        return toolsXml.toString();
     }
 
     /**
@@ -356,8 +372,12 @@ public class AIConnectorHandler {
     private Map<String, String> processToolData(Map<String, Object> data, String sequenceTemplateName) {
 
         Map<String, String> toolData = new HashMap<>();
-        toolData.put(Constant.NAME, data.get(TOOL_NAME).toString());
-        toolData.put(Constant.TEMPLATE, sequenceTemplateName);
+        if (data.containsKey(TOOL_NAME)) {
+            toolData.put(Constant.NAME, data.get(TOOL_NAME).toString());
+        }
+        if (StringUtils.isEmpty(sequenceTemplateName)) {
+            toolData.put(Constant.TEMPLATE, sequenceTemplateName);
+        }
         if (data.containsKey(MCP_CONNECTION)) {
             toolData.put(MCP_CONNECTION, data.get(MCP_CONNECTION).toString());
             toolData.put(IS_MCP, Constant.TRUE);
@@ -677,11 +697,57 @@ public class AIConnectorHandler {
                 markAIValueSupportedFields(schema.getAsJsonArray(Constant.ELEMENTS), template);
                 addToolConfigurations(schema, node, mediator);
                 return schema;
+            } else if (node.hasAttribute(Constant.TYPE)) {
+                if (node instanceof DOMElement) {
+                    return buildMcpMediatorUiSchema((DOMElement) node);
+                }
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error while getting tool schema with values", e);
         }
         return null;
+    }
+
+    private JsonObject buildMcpMediatorUiSchema(DOMElement node) {
+
+        JsonObject uiSchema = mediatorHandler.getUiSchema(MCP_MEDIATOR);
+        JsonObject jsonObject = new JsonObject();
+
+        String currentConnection = node.getAttribute(Constant.MCP_CONNECTION);
+        jsonObject.addProperty(Constant.CONFIG_REF, currentConnection);
+
+        JsonArray toolsArray = extractToolsForConnection(node, currentConnection);
+        jsonObject.add(MCP_TOOLS_SELECTION, toolsArray);
+
+        return UISchemaMapper.mapInputToUISchema(jsonObject, uiSchema);
+    }
+
+    private JsonArray extractToolsForConnection(DOMElement node, String connectionName) {
+
+        JsonArray toolsArray = new JsonArray();
+        Node toolsNode = node.getParentNode();
+
+        if (toolsNode == null || toolsNode.getNodeType() != Node.ELEMENT_NODE) {
+            return toolsArray;
+        }
+
+        NodeList toolNodes = toolsNode.getChildNodes();
+
+        for (int i = 0; i < toolNodes.getLength(); i++) {
+            Node child = toolNodes.item(i);
+
+            if (child.getNodeType() == Node.ELEMENT_NODE
+                    && Constant.TOOL.equals(child.getNodeName())) {
+
+                DOMElement toolElement = (DOMElement) child;
+
+                if (connectionName.equals(toolElement.getAttribute(Constant.MCP_CONNECTION))) {
+                    toolsArray.add(toolElement.getAttribute(Constant.NAME));
+                }
+            }
+        }
+
+        return toolsArray;
     }
 
     /**
@@ -839,12 +905,26 @@ public class AIConnectorHandler {
         boolean needToolEdit = dirtyFields.stream().anyMatch(TOOL_EDIT_FIELDS::contains) ||
                 data.containsKey(Constant.RESPONSE_VARIABLE);
         if (needToolEdit) {
-            Map<String, String> toolData = processToolData(data, templateName);
-            StringWriter writer = new StringWriter();
-            data.put(IS_MCP, isMCP);
-            String toolsEdit = mediatorHandler.getMustacheTemplate(Constant.TOOL).execute(writer, toolData).toString();
-            TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsEdit, documentUri);
-            agentEditResponse.addTextEdit(toolsEditTextEdit);
+            if (data.containsKey(MCP_TOOLS_SELECTION) && data.get(MCP_TOOLS_SELECTION) instanceof List<?>) {
+                String connectionName = StringUtils.EMPTY;
+                if (data.containsKey(CONFIG_KEY) && data.get(CONFIG_KEY) instanceof String) {
+                    connectionName = data.get(CONFIG_KEY).toString();
+                }
+
+                List<String> mcpToolsSelection = (List<String>) data.get(MCP_TOOLS_SELECTION);
+
+                String toolsXml = buildMcpToolsXml(mcpToolsSelection, connectionName, templateName);
+
+                TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsXml.toString(), documentUri);
+                agentEditResponse.addTextEdit(toolsEditTextEdit);
+            } else {
+                Map<String, String> toolData = processToolData(data, templateName);
+                StringWriter writer = new StringWriter();
+                data.put(IS_MCP, isMCP);
+                String toolsEdit = mediatorHandler.getMustacheTemplate(Constant.TOOL).execute(writer, toolData).toString();
+                TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsEdit, documentUri);
+                agentEditResponse.addTextEdit(toolsEditTextEdit);
+            }
             if (isMCP) {
                 agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
             }
