@@ -469,6 +469,13 @@ public class AIConnectorHandler {
 
         boolean isConnector = mediatorName != null && mediatorName.contains(".");
         JsonObject schema = mediatorHandler.getUiSchema(mediatorName, null, null);
+        if (schema != null && schema.has(Constant.OPERATION_NAME)) {
+            String operationName = schema.get(Constant.OPERATION_NAME).getAsString();
+            if (Constant.MCP_TOOLS.equals(operationName)) {
+                return schema;
+            }
+        }
+
         JsonObject toolSchema = mediatorHandler.getUiSchema(Constant.TOOL, null, null).deepCopy();
         JsonObject mediatorSchema = null;
         if (schema != null) {

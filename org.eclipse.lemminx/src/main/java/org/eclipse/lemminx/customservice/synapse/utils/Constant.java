@@ -602,6 +602,7 @@ public class Constant {
     public static final String MEMORY_CONFIG_KEY = "memoryConfigKey";
     public static final String TOOLS = "tools";
     public static final String TOOL = "tool";
+    public static final String MCP_TOOLS = "mcpTools";
     public static final String AI_AGENT_TAG = "ai.agent";
     public static final String ATTRIBUTE_GROUP = "attributeGroup";
     public static final String CURRENT_VALUE = "currentValue";
