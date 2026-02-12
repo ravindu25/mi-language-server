@@ -35,6 +35,13 @@
                         </xs:all>
                     </xs:complexType>
                 </xs:element>
+                <xs:element name="mcpConnections">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="mcpConfigKey" type="xs:string" maxOccurs="unbounded"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
                 <xs:element name="sessionId" type="xs:string" minOccurs="0"/>
                 <xs:element name="role" type="xs:string" minOccurs="0"/>
                 <xs:element name="instructions" type="xs:string" minOccurs="0"/>
@@ -49,6 +56,9 @@
                 <xs:element name="frequencyPenalty" type="xs:string" minOccurs="0"/>
                 <xs:element name="seed" type="xs:string" minOccurs="0"/>
                 <xs:element name="maxHistory" type="xs:string" minOccurs="0"/>
+                <xs:element name="overflowHandlingMethod" type="xs:string" minOccurs="0"/>
+                <xs:element name="summarizationLlmConfigKey" type="xs:string" minOccurs="0"/>
+                <xs:element name="summarizationModelName" type="xs:string" minOccurs="0"/>
                 <xs:element name="toolExecutionTimeout" type="xs:string" minOccurs="0"/>
                 <xs:element name="tools">
                     <xs:complexType>
@@ -56,9 +66,11 @@
                             <xs:element name="tool" minOccurs="0" maxOccurs="unbounded">
                                 <xs:complexType>
                                     <xs:attribute name="name" type="xs:string" use="required"/>
-                                    <xs:attribute name="template" type="xs:string" use="required"/>
+                                    <xs:attribute name="template" type="xs:string"/>
                                     <xs:attribute name="resultExpression" type="xs:string"/>
                                     <xs:attribute name="description" type="xs:string"/>
+                                    <xs:attribute name="type" type="xs:string"/>
+                                    <xs:attribute name="mcpConnection" type="xs:string"/>
                                 </xs:complexType>
                             </xs:element>
                         </xs:sequence>
