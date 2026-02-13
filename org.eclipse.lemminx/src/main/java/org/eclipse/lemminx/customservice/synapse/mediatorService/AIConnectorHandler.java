@@ -55,6 +55,7 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Document;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -77,6 +78,14 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import static org.eclipse.lemminx.customservice.synapse.utils.Utils.nodeToString;
+import static org.eclipse.lemminx.utils.XMLPositionUtility.createRange;
 
 public class AIConnectorHandler {
 
@@ -255,19 +264,29 @@ public class AIConnectorHandler {
 
             TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsXml.toString(), documentUri);
             agentEditResponse.addTextEdit(toolsEditTextEdit);
+
+            DOMDocument document = Utils.getDOMDocument(new File(documentUri));
+            // Increment the character position by 1 to get the tool tag
+            Position position = new Position(range.getStart().getLine(), range.getStart().getCharacter() + 1);
+            DOMNode node = document.findNodeAt(document.offsetAt(position));
+            DOMNode mcpMediatorNode = node.getParentNode();
+            TextEdit textEdit = ensureMcpConnectionExists(document, mcpMediatorNode, connectionName, documentUri);
+            agentEditResponse.addTextEdit(textEdit);
         } else {
             String toolXml = generateToolXml(data, sequenceTemplateName);
             TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolXml, documentUri);
             agentEditResponse.addTextEdit(toolsEditTextEdit);
         }
 
-        if (isMCP) {
-            DOMDocument document = Utils.getDOMDocument(new File(documentUri));
-            // Increment the character position by 1 to get the tool tag
-            Position position = new Position(range.getStart().getLine(), range.getStart().getCharacter() + 1);
-            DOMNode node = document.findNodeAt(document.offsetAt(position));
-            agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
-        }
+//        if (isMCP) {
+//            DOMDocument document = Utils.getDOMDocument(new File(documentUri));
+//            // Increment the character position by 1 to get the tool tag
+//            Position position = new Position(range.getStart().getLine(), range.getStart().getCharacter() + 1);
+//            DOMNode node = document.findNodeAt(document.offsetAt(position));
+//            DOMNode mcpMediatorNode = node.getParentNode();
+//            ensureMcpConnectionExists(document, mcpMediatorNode, )
+//            agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
+//        }
         return agentEditResponse;
     }
 
@@ -375,7 +394,7 @@ public class AIConnectorHandler {
         if (data.containsKey(TOOL_NAME)) {
             toolData.put(Constant.NAME, data.get(TOOL_NAME).toString());
         }
-        if (StringUtils.isEmpty(sequenceTemplateName)) {
+        if (!StringUtils.isEmpty(sequenceTemplateName)) {
             toolData.put(Constant.TEMPLATE, sequenceTemplateName);
         }
         if (data.containsKey(MCP_CONNECTION)) {
@@ -906,17 +925,71 @@ public class AIConnectorHandler {
                 data.containsKey(Constant.RESPONSE_VARIABLE);
         if (needToolEdit) {
             if (data.containsKey(MCP_TOOLS_SELECTION) && data.get(MCP_TOOLS_SELECTION) instanceof List<?>) {
-                String connectionName = StringUtils.EMPTY;
-                if (data.containsKey(CONFIG_KEY) && data.get(CONFIG_KEY) instanceof String) {
-                    connectionName = data.get(CONFIG_KEY).toString();
+
+                DOMNode toolsNode = (DOMNode) node.getParentNode();
+                if (toolsNode == null || !"tools".equals(toolsNode.getNodeName())) {
+                    return null;
                 }
 
-                List<String> mcpToolsSelection = (List<String>) data.get(MCP_TOOLS_SELECTION);
+                String targetConnection = node.getAttribute(Constant.MCP_CONNECTION);
+                List<String> updatedTools = (List<String>) data.get(MCP_TOOLS_SELECTION);
 
-                String toolsXml = buildMcpToolsXml(mcpToolsSelection, connectionName, templateName);
+                StringBuilder toolsXmlBuilder = new StringBuilder();
+                toolsXmlBuilder.append("<tools>\n");
 
-                TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsXml.toString(), documentUri);
-                agentEditResponse.addTextEdit(toolsEditTextEdit);
+                NodeList children = toolsNode.getChildNodes();
+
+                // Preserve tools from OTHER connections
+                for (int i = 0; i < children.getLength(); i++) {
+                    Node child = children.item(i);
+
+                    if (child.getNodeType() == Node.ELEMENT_NODE
+                            && "tool".equals(child.getNodeName())) {
+
+                        Element toolElem = (Element) child;
+                        String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
+
+                        if (!targetConnection.equals(connection)) {
+                            toolsXmlBuilder.append("    ")
+                                    .append(nodeToString(toolElem))
+                                    .append("\n");
+                        }
+                    }
+                }
+
+                // Add updated tools for selected connection
+                for (String tool : updatedTools) {
+                    toolsXmlBuilder.append("    <tool ")
+                            .append("name=\"").append(tool).append("\" ")
+                            .append("type=\"mcp\" ")
+                            .append("mcpConnection=\"").append(targetConnection).append("\" ")
+                            .append("description=\"\"/>\n");
+                }
+
+                toolsXmlBuilder.append("</tools>");
+
+                // Replace entire <tools> block
+                Range toolsRange = createRange(toolsNode.getStart(), toolsNode.getEnd(), document);
+
+                TextEdit edit = new DocumentTextEdit(
+                        toolsRange,
+                        toolsXmlBuilder.toString(),
+                        documentUri
+                );
+                agentEditResponse.addTextEdit(edit);
+
+                DOMNode agentNode = toolsNode.getParentNode();
+
+                TextEdit mcpEdit = ensureMcpConnectionExists(
+                        document,
+                        agentNode,
+                        targetConnection,
+                        documentUri
+                                                            );
+
+                if (mcpEdit != null) {
+                    agentEditResponse.addTextEdit(mcpEdit);
+                }
             } else {
                 Map<String, String> toolData = processToolData(data, templateName);
                 StringWriter writer = new StringWriter();
@@ -924,9 +997,6 @@ public class AIConnectorHandler {
                 String toolsEdit = mediatorHandler.getMustacheTemplate(Constant.TOOL).execute(writer, toolData).toString();
                 TextEdit toolsEditTextEdit = new DocumentTextEdit(range, toolsEdit, documentUri);
                 agentEditResponse.addTextEdit(toolsEditTextEdit);
-            }
-            if (isMCP) {
-                agentEditResponse.addTextEdit(getMcpConnectionConfiguration(node, documentUri, data, document));
             }
         }
 
@@ -945,6 +1015,96 @@ public class AIConnectorHandler {
         STNode stNode = SyntaxTreeGenerator.buildTree(sequenceTemplateDocument.getDocumentElement());
         modifySequenceTemplate(stNode, data, dirtyFields, mediator, sequenceTemplatePath, agentEditResponse);
         return agentEditResponse;
+    }
+
+    private TextEdit ensureMcpConnectionExists(DOMDocument document,
+                                               DOMNode agentNode,
+                                               String connectionName,
+                                               String documentUri) throws BadLocationException {
+
+        DOMNode mcpConnectionsNode = null;
+
+        // Find existing <mcpConnections>
+        for (DOMNode child : agentNode.getChildren()) {
+            if ("mcpConnections".equals(child.getNodeName())) {
+                mcpConnectionsNode = child;
+                break;
+            }
+        }
+
+        // If <mcpConnections> exists
+        if (mcpConnectionsNode != null) {
+
+            boolean alreadyExists = false;
+
+            for (DOMNode child : mcpConnectionsNode.getChildren()) {
+
+                if ("mcpConfigKey".equals(child.getNodeName())) {
+
+                    if (!child.getChildren().isEmpty()) {
+                        String value = child.getChild(0).getTextContent();
+                        if (value != null && connectionName.equals(value.trim())) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (alreadyExists) {
+                return null; // nothing to edit
+            }
+
+            // Insert new <mcpConfigKey> before closing tag
+            String newKeyXml = "    <mcpConfigKey>" + connectionName + "</mcpConfigKey>\n";
+
+            int endOffset = mcpConnectionsNode.getEnd();
+            String documentText = document.getText();
+
+            int closingTagStart = documentText.lastIndexOf("</mcpConnections>", endOffset);
+
+            Position insertPos = document.positionAt(closingTagStart);
+            Range insertRange = new Range(insertPos, insertPos);
+
+            return new DocumentTextEdit(insertRange, newKeyXml, documentUri);
+        }
+
+        // If <mcpConnections> does NOT exist → create full block
+
+        String newBlock =
+                "    <mcpConnections>\n" +
+                        "        <mcpConfigKey>" + connectionName + "</mcpConfigKey>\n" +
+                        "    </mcpConnections>\n";
+
+        // Insert after </connections> if present
+        DOMNode connectionsNode = null;
+        for (DOMNode child : agentNode.getChildren()) {
+            if ("connections".equals(child.getNodeName())) {
+                connectionsNode = child;
+                break;
+            }
+        }
+
+        int insertOffset;
+
+        if (connectionsNode != null) {
+            // Insert after </connections>
+            insertOffset = connectionsNode.getEnd();
+        } else {
+
+            // Insert right after opening <ai.agent ...>
+            int agentStart = agentNode.getStart();
+            String docText = document.getText();
+
+            // Find the closing '>' of <ai.agent ...>
+            int tagCloseOffset = docText.indexOf(">", agentStart);
+
+            insertOffset = tagCloseOffset + 1;
+        }
+
+        Position insertPos = document.positionAt(insertOffset);
+        Range insertRange = new Range(insertPos, insertPos);
+        return new DocumentTextEdit(insertRange, newBlock, documentUri);
     }
 
     private void modifySequenceTemplate(STNode stNode, Map<String, Object> data, List<String> dirtyFields,
