@@ -71,6 +71,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -927,65 +928,20 @@ public class AIConnectorHandler {
             if (data.containsKey(MCP_TOOLS_SELECTION) && data.get(MCP_TOOLS_SELECTION) instanceof List<?>) {
 
                 DOMNode toolsNode = (DOMNode) node.getParentNode();
-                if (toolsNode == null || !"tools".equals(toolsNode.getNodeName())) {
-                    return null;
-                }
-
                 String targetConnection = node.getAttribute(Constant.MCP_CONNECTION);
                 List<String> updatedTools = (List<String>) data.get(MCP_TOOLS_SELECTION);
 
-                StringBuilder toolsXmlBuilder = new StringBuilder();
-                toolsXmlBuilder.append("<tools>\n");
-
-                NodeList children = toolsNode.getChildNodes();
-
-                // Preserve tools from OTHER connections
-                for (int i = 0; i < children.getLength(); i++) {
-                    Node child = children.item(i);
-
-                    if (child.getNodeType() == Node.ELEMENT_NODE
-                            && "tool".equals(child.getNodeName())) {
-
-                        Element toolElem = (Element) child;
-                        String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
-
-                        if (!targetConnection.equals(connection)) {
-                            toolsXmlBuilder.append("    ")
-                                    .append(nodeToString(toolElem))
-                                    .append("\n");
-                        }
-                    }
-                }
-
-                // Add updated tools for selected connection
-                for (String tool : updatedTools) {
-                    toolsXmlBuilder.append("    <tool ")
-                            .append("name=\"").append(tool).append("\" ")
-                            .append("type=\"mcp\" ")
-                            .append("mcpConnection=\"").append(targetConnection).append("\" ")
-                            .append("description=\"\"/>\n");
-                }
-
-                toolsXmlBuilder.append("</tools>");
+                String updatedToolsXml = buildUpdatedToolsXml(document, toolsNode, targetConnection, updatedTools);
 
                 // Replace entire <tools> block
                 Range toolsRange = createRange(toolsNode.getStart(), toolsNode.getEnd(), document);
 
-                TextEdit edit = new DocumentTextEdit(
-                        toolsRange,
-                        toolsXmlBuilder.toString(),
-                        documentUri
-                );
+                TextEdit edit = new DocumentTextEdit(toolsRange, updatedToolsXml, documentUri);
                 agentEditResponse.addTextEdit(edit);
 
                 DOMNode agentNode = toolsNode.getParentNode();
 
-                TextEdit mcpEdit = ensureMcpConnectionExists(
-                        document,
-                        agentNode,
-                        targetConnection,
-                        documentUri
-                                                            );
+                TextEdit mcpEdit = ensureMcpConnectionExists(document, agentNode, targetConnection, documentUri);
 
                 if (mcpEdit != null) {
                     agentEditResponse.addTextEdit(mcpEdit);
@@ -1015,6 +971,76 @@ public class AIConnectorHandler {
         STNode stNode = SyntaxTreeGenerator.buildTree(sequenceTemplateDocument.getDocumentElement());
         modifySequenceTemplate(stNode, data, dirtyFields, mediator, sequenceTemplatePath, agentEditResponse);
         return agentEditResponse;
+    }
+
+    private String buildUpdatedToolsXml(
+            DOMDocument document,
+            DOMNode toolsNode,
+            String targetConnection,
+            List<String> updatedTools
+                                       ) {
+
+        // Track which updated tools still need to be added
+        Set<String> remainingTools = new LinkedHashSet<>(updatedTools);
+
+        StringBuilder toolsXmlBuilder = new StringBuilder();
+        toolsXmlBuilder.append("<tools>\n");
+
+        NodeList children = toolsNode.getChildNodes();
+
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+
+            if (child.getNodeType() != Node.ELEMENT_NODE ||
+                    !"tool".equals(child.getNodeName())) {
+                continue;
+            }
+
+            Element toolElem = (Element) child;
+
+            String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
+            String toolName = toolElem.getAttribute("name");
+
+            int start = ((DOMNode) child).getStart();
+            int end = ((DOMNode) child).getEnd();
+
+            String originalToolXml =
+                    document.getText().substring(start, end);
+
+            if (targetConnection.equals(connection)) {
+
+                // Keep only tools still selected
+                if (remainingTools.contains(toolName)) {
+                    toolsXmlBuilder
+                            .append("    ")
+                            .append(originalToolXml)
+                            .append("\n");
+
+                    remainingTools.remove(toolName);
+                }
+
+            } else {
+                // Preserve tools from other connections
+                toolsXmlBuilder
+                        .append("    ")
+                        .append(originalToolXml)
+                        .append("\n");
+            }
+        }
+
+        // Add newly selected tools that were not originally present
+        for (String tool : remainingTools) {
+            toolsXmlBuilder
+                    .append("    <tool ")
+                    .append("name=\"").append(tool).append("\" ")
+                    .append("type=\"mcp\" ")
+                    .append("mcpConnection=\"").append(targetConnection).append("\" ")
+                    .append("description=\"\"/>\n");
+        }
+
+        toolsXmlBuilder.append("</tools>");
+
+        return toolsXmlBuilder.toString();
     }
 
     private TextEdit ensureMcpConnectionExists(DOMDocument document,
