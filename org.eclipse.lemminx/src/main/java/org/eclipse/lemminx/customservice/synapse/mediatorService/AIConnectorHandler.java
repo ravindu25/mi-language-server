@@ -55,7 +55,6 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.w3c.dom.Document;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -80,12 +79,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
-
-import static org.eclipse.lemminx.customservice.synapse.utils.Utils.nodeToString;
 import static org.eclipse.lemminx.utils.XMLPositionUtility.createRange;
 
 public class AIConnectorHandler {
@@ -103,6 +96,7 @@ public class AIConnectorHandler {
     private static final String MCP_MEDIATOR = "ai.mcpTools";
     private static final String MCP_CONNECTION = "mcpConnection";
     private static final String MCP_CONNECTIONS = "mcpConnections";
+    private static final String CONNECTIONS = "connections";
     private static final String CONFIG_KEY = "configKey";
     private static final String MCP_TOOLS_SELECTION = "mcpToolsSelection";
     private static final String IS_MCP = "isMCP";
@@ -215,6 +209,77 @@ public class AIConnectorHandler {
         }
     }
 
+    /**
+     * Holder for metadata extracted from an existing `<tool/>` element in the document.
+     *
+     * <p>This simple data carrier stores the tool's name, the associated MCP connection
+     * (if any), and the raw XML fragment representing the original `<tool/>` element.</p>
+     */
+    private static class ExistingTool {
+        String name;
+        String connection;
+        String xml;
+
+        ExistingTool(String name, String connection, String xml) {
+            this.name = name;
+            this.connection = connection;
+            this.xml = xml;
+        }
+    }
+
+    /**
+     * Extracts metadata for existing `\<tool/>` elements under the provided `\<tools>` node.
+     *
+     * @param document the DOMDocument of the current XML file.
+     * @param toolsNode the DOMNode representing the parent `\<tools>` element to scan; may be null,
+     *                  in which case an empty list is returned.
+     * @return a non-null list of {@link ExistingTool} instances preserving the original element XML;
+     *         the list will be empty if no tool elements are found.
+     */
+    private List<ExistingTool> extractExistingTools(DOMDocument document, DOMNode toolsNode) {
+
+        List<ExistingTool> existingTools = new ArrayList<>();
+        if (toolsNode == null) {
+            return existingTools;
+        }
+
+        NodeList children = toolsNode.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() != Node.ELEMENT_NODE ||
+                    !Constant.TOOL.equals(child.getNodeName())) {
+                continue;
+            }
+            Element toolElem = (Element) child;
+
+            String name = toolElem.getAttribute(Constant.NAME);
+            String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
+
+            int start = ((DOMNode) child).getStart();
+            int end = ((DOMNode) child).getEnd();
+            String xml = document.getText().substring(start, end);
+            existingTools.add(new ExistingTool(name, connection, xml));
+        }
+
+        return existingTools;
+    }
+
+    /**
+     * Creates a new XML fragment for a tool associated with an MCP connection.
+     *
+     * @param toolName the display name of the tool to create (should not be null)
+     * @param targetConnection the name of the MCP connection to attach to the tool
+     * @return a rendered XML string for the new \<tool/> element
+     */
+    private String createNewToolXml(String toolName, String targetConnection) {
+
+        Map<String, Object> toolData = new HashMap<>();
+        toolData.put(TOOL_NAME, toolName);
+        toolData.put(MCP_CONNECTION, targetConnection);
+        toolData.put(TOOL_DESCRIPTION, StringUtils.EMPTY);
+        return generateToolXml(toolData, null);
+    }
+
     private SynapseConfigResponse addAIAgentTool(String documentUri, Range range, String mediator,
                                                  Map<String, Object> data, List<String> dirtyFields) throws BadLocationException, IOException {
 
@@ -267,42 +332,9 @@ public class AIConnectorHandler {
             DOMNode node = document.findNodeAt(document.offsetAt(position));
             DOMNode mcpMediatorNode = node.getParentNode();
 
-            // Build updated <tools> XML (works for both null & existing node)
+            // Build updated <tools> XML
             String updatedToolsXml = buildMergedToolsXml(document, node, connectionName, mcpToolsSelection);
-
-            TextEdit edit;
-
-            if (node != null) {
-                // Replace existing <tools> block
-                Range toolsRange = createRange(
-                        node.getStart(),
-                        node.getEnd(),
-                        document
-                                              );
-
-                edit = new DocumentTextEdit(
-                        toolsRange,
-                        updatedToolsXml,
-                        documentUri
-                );
-
-            } else {
-                // ➕ Insert new <tools> block inside agent
-                int insertOffset = mcpMediatorNode.getEnd() - 1;
-
-                Range insertRange = createRange(
-                        insertOffset,
-                        insertOffset,
-                        document
-                                               );
-
-                edit = new DocumentTextEdit(
-                        insertRange,
-                        "\n" + updatedToolsXml + "\n",
-                        documentUri
-                );
-            }
-
+            TextEdit edit = createToolsTextEdit(document, node, mcpMediatorNode, updatedToolsXml, documentUri);
             agentEditResponse.addTextEdit(edit);
 
             TextEdit textEdit = ensureMcpConnectionExists(document, mcpMediatorNode, connectionName, documentUri);
@@ -315,24 +347,17 @@ public class AIConnectorHandler {
         return agentEditResponse;
     }
 
-    private String buildMcpToolsXml(List<String> toolSelections, String connectionName, String sequenceTemplateName) {
-
-        if (toolSelections == null || toolSelections.isEmpty()) {
-            return StringUtils.EMPTY;
+    private TextEdit createToolsTextEdit(DOMDocument document, DOMNode node, DOMNode mcpMediatorNode, String updatedToolsXml, String documentUri) throws BadLocationException {
+        if (node != null) {
+            // Replace existing <tools> block
+            Range toolsRange = createRange(node.getStart(), node.getEnd(), document);
+            return new DocumentTextEdit(toolsRange, updatedToolsXml, documentUri);
+        } else {
+            // Insert new <tools> block inside agent
+            int insertOffset = mcpMediatorNode.getEnd() - 1;
+            Range insertRange = createRange(insertOffset, insertOffset, document);
+            return new DocumentTextEdit(insertRange, updatedToolsXml, documentUri);
         }
-
-        StringBuilder toolsXml = new StringBuilder();
-
-        for (String toolSelection : toolSelections) {
-            Map<String, Object> toolData = new HashMap<>();
-            toolData.put(TOOL_NAME, toolSelection);
-            toolData.put(MCP_CONNECTION, connectionName);
-
-            String toolXml = generateToolXml(toolData, sequenceTemplateName);
-            toolsXml.append(toolXml);
-        }
-
-        return toolsXml.toString();
     }
 
     /**
@@ -396,6 +421,29 @@ public class AIConnectorHandler {
         Map<String, String> toolData = processToolData(data, sequenceTemplateName);
         StringWriter writer = new StringWriter();
         return mediatorHandler.getMustacheTemplate(Constant.TOOL).execute(writer, toolData).toString();
+    }
+
+    /**
+     * Generates the <tools>...</tools> XML block.
+     *
+     * Expected structure:
+     *
+     * <tools>
+     *     <tool .../>
+     *     <tool .../>
+     * </tools>
+     */
+    private String generateToolsXmlFromStrings(List<String> renderedTools) {
+
+        Map<String, Object> context = new HashMap<>();
+        context.put(Constant.TOOLS, renderedTools);
+
+        StringWriter writer = new StringWriter();
+
+        return mediatorHandler
+                .getMustacheTemplate(Constant.TOOLS)
+                .execute(writer, context)
+                .toString();
     }
 
     /**
@@ -752,6 +800,18 @@ public class AIConnectorHandler {
         return null;
     }
 
+    /**
+     * Builds the UI schema for an MCP agent mediator DOM element.
+     *
+     * <p>Obtains the base MCP mediator UI schema from the mediator handler and applies
+     * current configuration values derived from the provided DOM element (for example
+     * the current MCP connection selection). The returned schema is suitable for
+     * rendering the MCP mediator configuration UI with current values applied.</p>
+     *
+     * @param node the DOM element representing the MCP agent mediator; expected to be non-null
+     * @return a {@link JsonObject} containing the MCP mediator UI schema with current values applied,
+     *         or {@code null} if a schema cannot be constructed
+     */
     private JsonObject buildMcpMediatorUiSchema(DOMElement node) {
 
         JsonObject uiSchema = mediatorHandler.getUiSchema(MCP_MEDIATOR);
@@ -762,35 +822,41 @@ public class AIConnectorHandler {
 
         JsonArray toolsArray = extractToolsForConnection(node, currentConnection);
         jsonObject.add(MCP_TOOLS_SELECTION, toolsArray);
-
         return UISchemaMapper.mapInputToUISchema(jsonObject, uiSchema);
     }
 
+    /**
+     * Extracts tool names for the given MCP connection from the DOM element's <tools> block.
+     *
+     * <p>The method looks for a sibling/child <tools> element of the provided DOM element and
+     * collects the names of <tool> elements. If {@code connectionName} is non-empty, only tools
+     * whose {@code mcpConnection} attribute equals {@code connectionName} are included. If the
+     * expected structure is missing or no matching tools are found, an empty {@link JsonArray}
+     * is returned.</p>
+     *
+     * @param node the agent DOM element (expected to be the element that contains or is adjacent to the <tools> block)
+     * @param connectionName the MCP connection name to filter tools by; when {@code null} or empty, no filtering is applied
+     * @return a {@link JsonArray} of tool names (strings); never {@code null}
+     */
     private JsonArray extractToolsForConnection(DOMElement node, String connectionName) {
 
         JsonArray toolsArray = new JsonArray();
         Node toolsNode = node.getParentNode();
-
         if (toolsNode == null || toolsNode.getNodeType() != Node.ELEMENT_NODE) {
             return toolsArray;
         }
-
         NodeList toolNodes = toolsNode.getChildNodes();
-
         for (int i = 0; i < toolNodes.getLength(); i++) {
             Node child = toolNodes.item(i);
-
             if (child.getNodeType() == Node.ELEMENT_NODE
                     && Constant.TOOL.equals(child.getNodeName())) {
 
                 DOMElement toolElement = (DOMElement) child;
-
                 if (connectionName.equals(toolElement.getAttribute(Constant.MCP_CONNECTION))) {
                     toolsArray.add(toolElement.getAttribute(Constant.NAME));
                 }
             }
         }
-
         return toolsArray;
     }
 
@@ -959,14 +1025,11 @@ public class AIConnectorHandler {
 
                 // Replace entire <tools> block
                 Range toolsRange = createRange(toolsNode.getStart(), toolsNode.getEnd(), document);
-
                 TextEdit edit = new DocumentTextEdit(toolsRange, updatedToolsXml, documentUri);
                 agentEditResponse.addTextEdit(edit);
 
                 DOMNode agentNode = toolsNode.getParentNode();
-
                 TextEdit mcpEdit = ensureMcpConnectionExists(document, agentNode, targetConnection, documentUri);
-
                 if (mcpEdit != null) {
                     agentEditResponse.addTextEdit(mcpEdit);
                 }
@@ -997,227 +1060,196 @@ public class AIConnectorHandler {
         return agentEditResponse;
     }
 
-    private String buildMergedToolsXml(
-            DOMDocument document,
-            DOMNode toolsNode,
-            String targetConnection,
-            List<String> selectedTools
-                                      ) {
+    /**
+     * Builds a merged `<tools>` XML fragment by preserving existing tool entries and adding new tools
+     * for the specified MCP connection.
+     *
+     * <p>For each existing tool node, the original XML is preserved. If an existing tool belongs to the
+     * `targetConnection`, its name is recorded so duplicates are not added. Any tool name present in
+     * `selectedTools` but not already present for the `targetConnection` will be created and appended.</p>
+     *
+     * @param document the DOMDocument representing the current XML document (used to extract existing tool XML)
+     * @param toolsNode the DOMNode representing the parent `<tools>` element; may be null
+     * @param targetConnection the name of the MCP connection to which selected tools should be associated
+     * @param selectedTools ordered list of tool names to ensure exist for the target connection
+     * @return the rendered XML string for the merged `<tools>` block
+     */
+    private String buildMergedToolsXml(DOMDocument document, DOMNode toolsNode, String targetConnection,
+                                       List<String> selectedTools) {
 
-        StringBuilder toolsXmlBuilder = new StringBuilder();
-        toolsXmlBuilder.append("<tools>\n");
+        List<ExistingTool> existingTools = extractExistingTools(document, toolsNode);
+        List<String> finalXMLs = new ArrayList<>();
+        Set<String> existingNamesForConnection = new HashSet<>();
 
-        // Track already existing tool names for target connection
-        Set<String> existingToolNames = new HashSet<>();
-
-        if (toolsNode != null) {
-
-            NodeList children = toolsNode.getChildNodes();
-
-            for (int i = 0; i < children.getLength(); i++) {
-                Node child = children.item(i);
-
-                if (child.getNodeType() != Node.ELEMENT_NODE ||
-                        !"tool".equals(child.getNodeName())) {
-                    continue;
-                }
-
-                Element toolElem = (Element) child;
-
-                String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
-                String toolName = toolElem.getAttribute("name");
-
-                int start = ((DOMNode) child).getStart();
-                int end = ((DOMNode) child).getEnd();
-
-                String originalToolXml =
-                        document.getText().substring(start, end);
-
-                // Preserve everything
-                toolsXmlBuilder
-                        .append("    ")
-                        .append(originalToolXml)
-                        .append("\n");
-
-                // Track existing tools for target connection
-                if (targetConnection.equals(connection)) {
-                    existingToolNames.add(toolName);
-                }
+        for (ExistingTool tool : existingTools) {
+            finalXMLs.add(tool.xml);
+            if (targetConnection.equals(tool.connection)) {
+                existingNamesForConnection.add(tool.name);
             }
         }
 
-        // Add only tools that are NOT already present
-        for (String tool : selectedTools) {
-            if (!existingToolNames.contains(tool)) {
-                toolsXmlBuilder
-                        .append("    <tool ")
-                        .append("name=\"").append(tool).append("\" ")
-                        .append("type=\"mcp\" ")
-                        .append("mcpConnection=\"").append(targetConnection).append("\" ")
-                        .append("description=\"\"/>\n");
+        for (String toolName : selectedTools) {
+            if (!existingNamesForConnection.contains(toolName)) {
+                String newToolXml = createNewToolXml(toolName, targetConnection);
+                finalXMLs.add(newToolXml);
             }
         }
-
-        toolsXmlBuilder.append("</tools>");
-
-        return toolsXmlBuilder.toString();
+        return generateToolsXmlFromStrings(finalXMLs);
     }
 
-    private String buildUpdatedToolsXml(
-            DOMDocument document,
-            DOMNode toolsNode,
-            String targetConnection,
-            List<String> updatedTools
-                                       ) {
+    /**
+     * Builds an updated `<tools>` XML fragment for the MCP agent.
+     *
+     * The method preserves existing tool XML entries extracted from the current document,
+     * ensures tools associated with the specified `targetConnection` match the provided
+     * `updatedTools` list (adding or removing entries as needed), and returns the rendered
+     * `<tools>` XML as a string.
+     *
+     * @param document the DOMDocument of the current XML document (used to extract existing tool XML)
+     * @param toolsNode the DOMNode representing the parent `<tools>` element; may be null
+     * @param targetConnection the MCP connection name to which the updated tools should be associated
+     * @param updatedTools ordered list of tool names that should exist for the target connection
+     * @return the rendered XML string for the updated `<tools>` block
+     */
+    private String buildUpdatedToolsXml(DOMDocument document, DOMNode toolsNode, String targetConnection,
+                                        List<String> updatedTools) {
 
-        // Track which updated tools still need to be added
-        Set<String> remainingTools = new LinkedHashSet<>(updatedTools);
+        List<ExistingTool> existingTools = extractExistingTools(document, toolsNode);
+        List<String> finalXMLs = new ArrayList<>();
+        Set<String> remaining = new LinkedHashSet<>(updatedTools);
 
-        StringBuilder toolsXmlBuilder = new StringBuilder();
-        toolsXmlBuilder.append("<tools>\n");
-
-        NodeList children = toolsNode.getChildNodes();
-
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-
-            if (child.getNodeType() != Node.ELEMENT_NODE ||
-                    !"tool".equals(child.getNodeName())) {
-                continue;
-            }
-
-            Element toolElem = (Element) child;
-
-            String connection = toolElem.getAttribute(Constant.MCP_CONNECTION);
-            String toolName = toolElem.getAttribute("name");
-
-            int start = ((DOMNode) child).getStart();
-            int end = ((DOMNode) child).getEnd();
-
-            String originalToolXml =
-                    document.getText().substring(start, end);
-
-            if (targetConnection.equals(connection)) {
-
-                // Keep only tools still selected
-                if (remainingTools.contains(toolName)) {
-                    toolsXmlBuilder
-                            .append("    ")
-                            .append(originalToolXml)
-                            .append("\n");
-
-                    remainingTools.remove(toolName);
+        for (ExistingTool tool : existingTools) {
+            if (targetConnection.equals(tool.connection)) {
+                if (remaining.contains(tool.name)) {
+                    finalXMLs.add(tool.xml);
+                    remaining.remove(tool.name);
                 }
-
             } else {
-                // Preserve tools from other connections
-                toolsXmlBuilder
-                        .append("    ")
-                        .append(originalToolXml)
-                        .append("\n");
+                finalXMLs.add(tool.xml);
             }
         }
 
-        // Add newly selected tools that were not originally present
-        for (String tool : remainingTools) {
-            toolsXmlBuilder
-                    .append("    <tool ")
-                    .append("name=\"").append(tool).append("\" ")
-                    .append("type=\"mcp\" ")
-                    .append("mcpConnection=\"").append(targetConnection).append("\" ")
-                    .append("description=\"\"/>\n");
+        for (String toolName : remaining) {
+            String newToolXml = createNewToolXml(toolName, targetConnection);
+            finalXMLs.add(newToolXml);
         }
-
-        toolsXmlBuilder.append("</tools>");
-
-        return toolsXmlBuilder.toString();
+        return generateToolsXmlFromStrings(finalXMLs);
     }
 
+    /**
+     * Ensures that the agent DOM node contains an `<mcpConnections>` block that includes
+     * a configuration entry for the supplied `connectionName`. If the block or the
+     * specific config key is missing, this method returns a `DocumentTextEdit` that
+     * inserts the required XML at the correct position in the document.
+     *
+     * @param document the DOMDocument for the current XML file (used to compute offsets and positions)
+     * @param agentNode the agent DOM node under which the `<mcpConnections>` block should exist
+     * @param connectionName the MCP connection name to ensure is present in the agent configuration
+     * @param documentUri the URI of the document to which the returned TextEdit will apply
+     * @return a TextEdit that inserts or updates the `<mcpConnections>` block; caller should apply this edit
+     * @throws BadLocationException if a computed insert position is invalid for the provided document
+     */
     private TextEdit ensureMcpConnectionExists(DOMDocument document, DOMNode agentNode, String connectionName,
-                                               String documentUri) throws BadLocationException {
+                                              String documentUri) throws BadLocationException {
 
-        DOMNode mcpConnectionsNode = null;
+        DOMNode mcpConnectionsNode = Utils.getChildNodeByName(agentNode, MCP_CONNECTIONS);
 
-        // Find existing <mcpConnections>
-        for (DOMNode child : agentNode.getChildren()) {
-            if ("mcpConnections".equals(child.getNodeName())) {
-                mcpConnectionsNode = child;
-                break;
-            }
-        }
-
-        // If <mcpConnections> exists
         if (mcpConnectionsNode != null) {
-
-            boolean alreadyExists = false;
-
-            for (DOMNode child : mcpConnectionsNode.getChildren()) {
-
-                if ("mcpConfigKey".equals(child.getNodeName())) {
-
-                    if (!child.getChildren().isEmpty()) {
-                        String value = child.getChild(0).getTextContent();
-                        if (value != null && connectionName.equals(value.trim())) {
-                            alreadyExists = true;
-                            break;
-                        }
-                    }
-                }
+            if (hasMCPConnection(mcpConnectionsNode, connectionName)) {
+                return emptyEdit(documentUri);
             }
-
-            if (alreadyExists) {
-                // Return empty edit instead of null
-                Position pos = document.positionAt(0);
-                Range emptyRange = new Range(pos, pos);
-                return new DocumentTextEdit(emptyRange, "", documentUri);
-            }
-
-            // Insert new <mcpConfigKey> before closing tag
-            String newKeyXml = "    <mcpConfigKey>" + connectionName + "</mcpConfigKey>\n";
-
-            int endOffset = mcpConnectionsNode.getEnd();
-            String documentText = document.getText();
-
-            int closingTagStart = documentText.lastIndexOf("</mcpConnections>", endOffset);
-
-            Position insertPos = document.positionAt(closingTagStart);
-            Range insertRange = new Range(insertPos, insertPos);
-
-            return new DocumentTextEdit(insertRange, newKeyXml, documentUri);
+            return insertMCPConnection(document, mcpConnectionsNode, connectionName, documentUri);
         }
+        return insertNewMCPConnectionsBlock(document, agentNode, connectionName, documentUri);
+    }
 
-        // If <mcpConnections> does NOT exist → create full block
-        String newBlock =
-                "    <mcpConnections>\n" +
-                        "        <mcpConfigKey>" + connectionName + "</mcpConfigKey>\n" +
-                        "    </mcpConnections>\n";
+    private TextEdit insertMCPConnection(DOMDocument document, DOMNode mcpConnectionsNode, String connectionName,
+                                     String documentUri) throws BadLocationException {
 
-        // Insert after </connections> if present
-        DOMNode connectionsNode = null;
-        for (DOMNode child : agentNode.getChildren()) {
-            if ("connections".equals(child.getNodeName())) {
-                connectionsNode = child;
-                break;
-            }
-        }
+        int endOffset = mcpConnectionsNode.getEnd();
+        String documentText = document.getText();
+        int closingTagStart = documentText.lastIndexOf("</mcpConnections>", endOffset);
+        Position insertPos = document.positionAt(closingTagStart);
+        Range insertRange = new Range(insertPos, insertPos);
+        return new DocumentTextEdit(insertRange, renderMcpConfigKey(connectionName), documentUri);
+    }
 
+    private TextEdit insertNewMCPConnectionsBlock(DOMDocument document, DOMNode agentNode, String connectionName,
+                                                  String documentUri) throws BadLocationException {
+
+        DOMNode connectionsNode = Utils.getChildNodeByName(agentNode, CONNECTIONS);
         int insertOffset;
-
         if (connectionsNode != null) {
             insertOffset = connectionsNode.getEnd();
         } else {
-
             int agentStart = agentNode.getStart();
             String docText = document.getText();
-
             int tagCloseOffset = docText.indexOf(">", agentStart);
             insertOffset = tagCloseOffset + 1;
         }
-
         Position insertPos = document.positionAt(insertOffset);
         Range insertRange = new Range(insertPos, insertPos);
+        String keyXml = renderMcpConfigKey(connectionName);
+        return new DocumentTextEdit(insertRange, renderMcpConnectionsBlock(List.of(keyXml)), documentUri);
+    }
 
-        return new DocumentTextEdit(insertRange, newBlock, documentUri);
+    private TextEdit emptyEdit(String documentUri) {
+
+        Position pos = new Position(0, 0);
+        Range emptyRange = new Range(pos, pos);
+        return new DocumentTextEdit(emptyRange, "", documentUri);
+    }
+
+    private boolean hasMCPConnection(DOMNode mcpConnectionsNode, String connectionName) {
+
+        for (DOMNode child : mcpConnectionsNode.getChildren()) {
+            if ("mcpConfigKey".equals(child.getNodeName()) && !child.getChildren().isEmpty()) {
+                String value = child.getChild(0).getTextContent();
+                if (connectionName.equals(value != null ? value.trim() : null)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Renders a single <mcpConfigKey> element for the provided MCP connection name using the
+     * Mustache template context. The returned string is an XML fragment suitable for insertion
+     * into an agent's `<mcpConnections>` block.
+     *
+     * @param connectionName the MCP connection name to render
+     * @return the rendered XML fragment for the MCP config key
+     */
+    private String renderMcpConfigKey(String connectionName) {
+
+        Map<String, Object> context = new HashMap<>();
+        context.put(MCP_CONNECTION, connectionName);
+        StringWriter writer = new StringWriter();
+        return mediatorHandler
+                .getMustacheTemplate(MCP_CONNECTION)
+                .execute(writer, context)
+                .toString();
+    }
+
+    /**
+     * Render a complete `<mcpConnections>` XML block from a list of pre-rendered
+     * `<mcpConfigKey>` fragments.
+     *
+     * @param renderedKeys ordered list of rendered `<mcpConfigKey>` XML fragments;
+     *                     may be empty, in which case the resulting block will contain
+     *                     no child keys
+     * @return the rendered `<mcpConnections>` XML block as a string
+     */
+    private String renderMcpConnectionsBlock(List<String> renderedKeys) {
+
+        Map<String, Object> context = new HashMap<>();
+        context.put(MCP_CONNECTIONS, renderedKeys);
+        StringWriter writer = new StringWriter();
+        return mediatorHandler
+                .getMustacheTemplate(MCP_CONNECTIONS)
+                .execute(writer, context)
+                .toString();
     }
 
     private void modifySequenceTemplate(STNode stNode, Map<String, Object> data, List<String> dirtyFields,
