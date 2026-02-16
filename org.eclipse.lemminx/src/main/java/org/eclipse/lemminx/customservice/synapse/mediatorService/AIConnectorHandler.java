@@ -271,7 +271,7 @@ public class AIConnectorHandler {
      * @param targetConnection the name of the MCP connection to attach to the tool
      * @return a rendered XML string for the new \<tool/> element
      */
-    private String createNewToolXml(String toolName, String targetConnection) {
+    private String createNewMCPToolXml(String toolName, String targetConnection) {
 
         Map<String, Object> toolData = new HashMap<>();
         toolData.put(TOOL_NAME, toolName);
@@ -1090,7 +1090,7 @@ public class AIConnectorHandler {
 
         for (String toolName : selectedTools) {
             if (!existingNamesForConnection.contains(toolName)) {
-                String newToolXml = createNewToolXml(toolName, targetConnection);
+                String newToolXml = createNewMCPToolXml(toolName, targetConnection);
                 finalXMLs.add(newToolXml);
             }
         }
@@ -1130,7 +1130,7 @@ public class AIConnectorHandler {
         }
 
         for (String toolName : remaining) {
-            String newToolXml = createNewToolXml(toolName, targetConnection);
+            String newToolXml = createNewMCPToolXml(toolName, targetConnection);
             finalXMLs.add(newToolXml);
         }
         return generateToolsXmlFromStrings(finalXMLs);

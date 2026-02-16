@@ -65,7 +65,8 @@ public class AIAgentConnectorFactory extends AIConnectorFactory {
             List<DOMNode> toolElements = toolsElement.getChildren();
             for (DOMNode toolElement : toolElements) {
                 if (toolElement instanceof DOMElement && Constant.TOOL.equals(toolElement.getNodeName())) {
-                    if(toolElement.hasAttribute(Constant.TYPE)){
+                    if (toolElement.hasAttribute(Constant.TYPE) &&
+                            Constant.MCP.equals(toolElement.getAttribute(Constant.TYPE))) {
                         AgentTool agentTool = new AgentTool();
                         agentTool.elementNode((DOMElement) toolElement);
                         agentTool.setName(toolElement.getAttribute(Constant.NAME));

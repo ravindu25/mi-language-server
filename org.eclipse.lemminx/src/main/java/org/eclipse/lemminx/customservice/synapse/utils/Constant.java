@@ -38,6 +38,7 @@ public class Constant {
     public static final String METHODS = "methods";
     public static final String SEQUENCE = "sequence";
     public static final String TYPE = "type";
+    public static final String MCP = "mcp";
     public static final String MAX_SIZE = "maxSize";
     public static final String TARGET = "target";
     public static final String SOURCE = "source";
