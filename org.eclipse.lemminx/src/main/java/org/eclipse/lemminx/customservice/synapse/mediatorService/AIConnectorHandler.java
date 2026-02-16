@@ -1156,7 +1156,7 @@ public class AIConnectorHandler {
 
         if (mcpConnectionsNode != null) {
             if (hasMCPConnection(mcpConnectionsNode, connectionName)) {
-                return emptyEdit(documentUri);
+                return null;
             }
             return insertMCPConnection(document, mcpConnectionsNode, connectionName, documentUri);
         }
@@ -1191,13 +1191,6 @@ public class AIConnectorHandler {
         Range insertRange = new Range(insertPos, insertPos);
         String keyXml = renderMcpConfigKey(connectionName);
         return new DocumentTextEdit(insertRange, renderMcpConnectionsBlock(List.of(keyXml)), documentUri);
-    }
-
-    private TextEdit emptyEdit(String documentUri) {
-
-        Position pos = new Position(0, 0);
-        Range emptyRange = new Range(pos, pos);
-        return new DocumentTextEdit(emptyRange, "", documentUri);
     }
 
     private boolean hasMCPConnection(DOMNode mcpConnectionsNode, String connectionName) {

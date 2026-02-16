@@ -42,7 +42,9 @@ public class SynapseConfigResponse {
 
     public void addTextEdit(TextEdit edit) {
 
-        textEdits.add(edit);
+        if (edit != null) {
+            textEdits.add(edit);
+        }
     }
 
     public void sort() {
