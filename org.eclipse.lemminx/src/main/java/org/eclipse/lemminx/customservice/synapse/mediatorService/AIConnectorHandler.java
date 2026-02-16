@@ -1091,7 +1091,7 @@ public class AIConnectorHandler {
         for (String toolName : selectedTools) {
             if (!existingNamesForConnection.contains(toolName)) {
                 String newToolXml = createNewMCPToolXml(toolName, targetConnection);
-                finalXMLs.add(newToolXml);
+                finalXMLs.add(newToolXml.stripTrailing());
             }
         }
         return generateToolsXmlFromStrings(finalXMLs);
@@ -1131,7 +1131,7 @@ public class AIConnectorHandler {
 
         for (String toolName : remaining) {
             String newToolXml = createNewMCPToolXml(toolName, targetConnection);
-            finalXMLs.add(newToolXml);
+            finalXMLs.add(newToolXml.stripTrailing());
         }
         return generateToolsXmlFromStrings(finalXMLs);
     }
