@@ -66,11 +66,14 @@ import org.eclipse.lemminx.customservice.synapse.dependency.tree.pojo.Dependency
 import org.eclipse.lemminx.customservice.synapse.mediator.tryout.TryOutManager;
 import org.eclipse.lemminx.customservice.synapse.InvalidConfigurationException;
 import org.eclipse.lemminx.customservice.synapse.mediator.tryout.pojo.MediatorTryoutRequest;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.AIConnectorHandler;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.MediatorHandler;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MediatorRequest;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.SynapseConfigRequest;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.SynapseConfigResponse;
 import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.UISchemaRequest;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MCPToolRequest;
+import org.eclipse.lemminx.customservice.synapse.mediatorService.pojo.MCPToolResponse;
 import org.eclipse.lemminx.customservice.synapse.parser.ConfigDetails;
 import org.eclipse.lemminx.customservice.synapse.parser.Constants;
 import org.eclipse.lemminx.customservice.synapse.parser.DependencyStatusResponse;
@@ -794,6 +797,14 @@ public class SynapseLanguageService implements ISynapseLanguageService {
 
         return CompletableFuture.supplyAsync(() -> Constant.INPUT.equals(param.type) ?
                 QueryGenerator.getInputMappings(param.query) : QueryGenerator.getOutputMappings(param));
+    }
+  
+    @Override
+    public CompletableFuture<MCPToolResponse> getMCPTools(MCPToolRequest param) {
+
+        Connections connections = ConnectionFinder.findConnections(projectUri, Constant.LOWERCASE_AI, connectorHolder, isLegacyProject).getLeft();
+        AIConnectorHandler aiConnectorHandler = new AIConnectorHandler(mediatorHandler, projectUri);
+        return CompletableFuture.supplyAsync(() -> aiConnectorHandler.fetchMcpTools(connections.getConnections(), param.connectionName));
     }
 
     public String getProjectUri() {

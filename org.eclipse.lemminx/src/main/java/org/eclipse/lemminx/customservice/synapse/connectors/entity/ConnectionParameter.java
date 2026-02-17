@@ -43,6 +43,11 @@ public class ConnectionParameter {
         this.expression = expression;
     }
 
+    public String getName() {
+
+        return name;
+    }
+
     public String getValue() {
 
         return value;

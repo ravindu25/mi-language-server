@@ -38,6 +38,7 @@ public class Constant {
     public static final String METHODS = "methods";
     public static final String SEQUENCE = "sequence";
     public static final String TYPE = "type";
+    public static final String MCP = "mcp";
     public static final String MAX_SIZE = "maxSize";
     public static final String TARGET = "target";
     public static final String SOURCE = "source";
@@ -602,6 +603,7 @@ public class Constant {
     public static final String MEMORY_CONFIG_KEY = "memoryConfigKey";
     public static final String TOOLS = "tools";
     public static final String TOOL = "tool";
+    public static final String MCP_TOOLS = "mcpTools";
     public static final String AI_AGENT_TAG = "ai.agent";
     public static final String ATTRIBUTE_GROUP = "attributeGroup";
     public static final String CURRENT_VALUE = "currentValue";
@@ -612,6 +614,7 @@ public class Constant {
     public static final Map<String, String> AI_CONNECTOR_VISITOR_FUNCTION = new HashMap<>();
     public static final String CHECK_BOX = "checkbox";
     public static final String AI = "AI";
+    public static final String LOWERCASE_AI = "ai";
     public static final String AGENT_ID = "agentID";
     public static final String RESULT_EXPRESSION = "resultExpression";
     public static final String AI_AGENT = "AI_AGENT";
@@ -654,6 +657,7 @@ public class Constant {
         put("4.4.0", "4.4.0");
         put("4.5.0", "4.4.0");
     }};
+    public static final String MCP_CONNECTION = "mcpConnection";
 
     static {
         // AI Connection to Display Name bi-Mapping
