@@ -152,16 +152,28 @@ public class AIConnectorHandler {
             }
             connectorData.put(Constant.PARAMETERS, parameterData);
             if (node instanceof AIAgent && ((AIAgent) node).getTools() != null) {
-                List<Map<String, String>> tools = new ArrayList<>();
-                for (AgentTool tool : ((AIAgent) node).getTools().getTools()) {
-                    Map<String, String> toolData = new HashMap<>();
-                    toolData.put(Constant.NAME, tool.getName());
-                    toolData.put(Constant.TEMPLATE, tool.getTemplate());
-                    toolData.put(Constant.RESULT_EXPRESSION, tool.getResultExpression());
-                    toolData.put(Constant.DESCRIPTION, tool.getDescription());
-                    tools.add(toolData);
+                AIAgent aiAgent = (AIAgent) node;
+                if (aiAgent.getTools() != null) {
+                    List<Map<String, String>> tools = new ArrayList<>();
+                    for (AgentTool tool : ((AIAgent) node).getTools().getTools()) {
+                        Map<String, String> toolData = new HashMap<>();
+                        toolData.put(Constant.NAME, tool.getName());
+                        toolData.put(Constant.DESCRIPTION, tool.getDescription());
+                        if (tool.isMcpTool()) {
+                            toolData.put(IS_MCP, Constant.TRUE);
+                            toolData.put(Constant.TYPE, Constant.MCP);
+                            toolData.put(Constant.MCP_CONNECTION, tool.getMcpConnection());
+                        } else {
+                            toolData.put(Constant.TEMPLATE, tool.getTemplate());
+                            toolData.put(Constant.RESULT_EXPRESSION, tool.getResultExpression());
+                        }
+                        tools.add(toolData);
+                    }
+                    connectorData.put(Constant.TOOLS, tools);
                 }
-                connectorData.put(Constant.TOOLS, tools);
+                if (aiAgent.getMcpConnections() != null) {
+                    connectorData.put(MCP_CONNECTIONS, aiAgent.getMcpConnections().getMcpConnections());
+                }
             }
             StringWriter writer = new StringWriter();
             String edit = mediatorHandler.getMustacheTemplate(AI_CONNECTOR_MUSTACHE_TEMPLATE_NAME)

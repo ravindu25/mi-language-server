@@ -20,6 +20,7 @@ import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai.AI
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai.AIConnector;
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai.AgentTool;
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai.AgentTools;
+import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai.MCPConnections;
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.mediator.Mediator;
 import org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.template.Template;
 import org.eclipse.lemminx.customservice.synapse.utils.ConfigFinder;
@@ -52,8 +53,45 @@ public class AIAgentConnectorFactory extends AIConnectorFactory {
             ((AIAgent) aiAgent).setAgentID(Utils.getInlineString(agentIDNode.getFirstChild()));
         }
 
+        populateMCPConnections((AIAgent) aiAgent, element);
         populateTools((AIAgent) aiAgent, element);
         return aiAgent;
+    }
+
+    /**
+     * Extracts MCP connection configuration details from the given DOM element
+     * and populates the provided {@link AIAgent} instance.
+     *
+     * <p>This method searches for a child element named {@code <mcpConnections>}
+     * inside the provided element. If found, it iterates through its
+     * child nodes and collects the values of all {@code <mcpConfigKey>} elements.
+     * Non-null and non-blank values are added to a list of MCP connection keys.</p>
+     *
+     * <p>The collected connection keys are then set into a {@link MCPConnections}
+     * object, which is attached to the given {@link AIAgent}.</p>
+     *
+     * @param aiAgent the {@link AIAgent} instance to populate with MCP connection data
+     * @param element the DOM element that potentially contains the
+     *                {@code <mcpConnections>} configuration
+     */
+    private void populateMCPConnections(AIAgent aiAgent, DOMElement element) {
+
+        DOMNode mcpConnectionsElement = Utils.getChildNodeByName(element, "mcpConnections");
+        if (mcpConnectionsElement != null) {
+            MCPConnections mcpConnectionsObj = new MCPConnections();
+            List<DOMNode> mcpChildren = mcpConnectionsElement.getChildren();
+            List<String> mcpConnectionList = new java.util.ArrayList<>();
+            for (DOMNode child : mcpChildren) {
+                if (child instanceof DOMElement && "mcpConfigKey".equals(child.getNodeName())) {
+                    String value = Utils.getInlineString(child.getFirstChild());
+                    if (value != null && !value.isBlank()) {
+                        mcpConnectionList.add(value);
+                    }
+                }
+            }
+            mcpConnectionsObj.setMcpConnections(mcpConnectionList);
+            aiAgent.setMcpConnections(mcpConnectionsObj);
+        }
     }
 
     private void populateTools(AIAgent aiAgent, DOMElement element) {
