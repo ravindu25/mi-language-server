@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -66,6 +67,11 @@ public class InboundConnectorHolder {
     private String projectRuntimeVersion;
     private String localInboundEndpointsListForCopilot;
 
+    private Set<String> FALLBACK_TO_440 = Set.of(
+            Constant.MI_460_VERSION,
+            Constant.MI_450_VERSION
+    );
+
     public InboundConnectorHolder() {
 
         this.inboundConnectors = new HashMap<>();
@@ -85,14 +91,14 @@ public class InboundConnectorHolder {
         OverviewPageDetailsResponse pomDetailsResponse = new OverviewPageDetailsResponse();
         getPomDetails(projectPath, pomDetailsResponse);
         Node node = pomDetailsResponse.getPrimaryDetails().getRuntimeVersion();
-        if (node != null && Constant.MI_450_VERSION.equals(node.getValue())) {
+        if (node != null && FALLBACK_TO_440.contains(node.getValue())) {
             this.projectRuntimeVersion = node.getValue();
         } else {
             this.projectRuntimeVersion = projectRuntimeVersion;
         }
         this.tempFolderPath = System.getProperty("user.home") + File.separator + ".wso2-mi" + File.separator +
                 Constant.INBOUND_CONNECTORS + File.separator + new File(projectPath).getName() + "_" + projectId;
-        String referenceRuntime = Constant.MI_450_VERSION.equals(this.projectRuntimeVersion) ? Constant.MI_440_VERSION
+        String referenceRuntime = FALLBACK_TO_440.contains(this.projectRuntimeVersion) ? Constant.MI_440_VERSION
                                     : this.projectRuntimeVersion;
         this.localInboundConnectors = Utils.getUISchemaMap("org/eclipse/lemminx/inbound-endpoints/"
                 + referenceRuntime.replace(".", StringUtils.EMPTY));
