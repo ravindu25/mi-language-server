@@ -804,7 +804,9 @@ public class SynapseLanguageService implements ISynapseLanguageService {
 
         Connections connections = ConnectionFinder.findConnections(projectUri, Constant.LOWERCASE_AI, connectorHolder, isLegacyProject).getLeft();
         AIConnectorHandler aiConnectorHandler = new AIConnectorHandler(mediatorHandler, projectUri);
-        return CompletableFuture.supplyAsync(() -> aiConnectorHandler.fetchMcpTools(connections.getConnections(), param.connectionName));
+        return CompletableFuture.supplyAsync(
+                () -> aiConnectorHandler.fetchMcpTools(param.documentUri, param.range, connections.getConnections(),
+                        param.connectionName));
     }
 
     public String getProjectUri() {

@@ -31,6 +31,7 @@ import org.apache.maven.shared.invoker.DefaultInvoker;
 import org.apache.maven.shared.invoker.Invoker;
 import org.apache.maven.shared.invoker.InvocationResult;
 import org.apache.maven.shared.invoker.InvocationRequest;
+import org.eclipse.lemminx.commons.BadLocationException;
 import org.eclipse.lemminx.commons.TextDocument;
 import org.eclipse.lemminx.customservice.synapse.connectors.ConnectorHolder;
 import org.eclipse.lemminx.customservice.synapse.connectors.entity.Connector;
@@ -47,6 +48,8 @@ import org.eclipse.lemminx.dom.DOMNode;
 import org.eclipse.lemminx.dom.DOMParser;
 import org.eclipse.lemminx.uriresolver.URIResolverExtensionManager;
 import org.eclipse.lsp4j.InitializeParams;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.Range;
 import org.w3c.dom.Node;
 
 import java.io.BufferedInputStream;
@@ -219,6 +222,28 @@ public class Utils {
         TextDocument document = new TextDocument(text, path.toUri().toString());
         DOMDocument domDocument = DOMParser.getInstance().parse(document, null);
         return domDocument;
+    }
+
+    /**
+     * Returns the {@link DOMNode} located at the given LSP {@link Position} in the document identified
+     * by {@code documentUri}.
+     *
+     * @param documentUri the document URI as a string
+     * @param position the position inside the document
+     * @return the {@link DOMNode} at the given position, or {@code null} if not found
+     * @throws URISyntaxException if the {@code documentUri} is an invalid URI
+     * @throws IOException if an I/O error occurs while reading or parsing the document
+     * @throws BadLocationException if the provided {@code position} is invalid for the document
+     */
+    public static DOMNode getDOMNode(String documentUri, Position position)
+            throws URISyntaxException, IOException, BadLocationException {
+
+        if (StringUtils.isEmpty(documentUri) || position == null) {
+            return null;
+        }
+        DOMDocument document = Utils.getDOMDocument(new File(new URI(documentUri)));
+        int offset = document.offsetAt(position);
+        return document.findNodeAt(offset);
     }
 
     /**

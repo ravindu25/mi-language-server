@@ -277,6 +277,41 @@ public class AIConnectorHandler {
     }
 
     /**
+     * Returns the list of tool names present under the given `toolsNode` that are associated
+     * with the specified MCP connection.
+     *
+     * @param toolsNode the parent DOM node containing `{@code <tool>}` children.
+     * @param connection the MCP connection name to filter tools by
+     * @return a non-null list of tool names; empty when no matching tools are found
+     */
+    private List<String> getExistingToolsForConnection(DOMNode toolsNode, String connection) {
+
+        List<String> toolNames = new ArrayList<>();
+        if (toolsNode == null) {
+            return toolNames;
+        }
+
+        NodeList children = toolsNode.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() != Node.ELEMENT_NODE || !Constant.TOOL.equals(child.getNodeName())) {
+                continue;
+            }
+            Element toolElem = (Element) child;
+            String name = toolElem.getAttribute(Constant.NAME);
+            String conn = toolElem.getAttribute(Constant.MCP_CONNECTION);
+            if (StringUtils.isEmpty(name)) {
+                continue;
+            }
+            if (!StringUtils.isEmpty(connection) && connection.equals(conn)) {
+                toolNames.add(name);
+            }
+        }
+
+        return toolNames;
+    }
+
+    /**
      * Creates a new XML fragment for a tool associated with an MCP connection.
      *
      * @param toolName the display name of the tool to create (should not be null)
@@ -1296,10 +1331,28 @@ public class AIConnectorHandler {
         return new Range(start, end);
     }
 
-    public MCPToolResponse fetchMcpTools(List<Connection> connections, String connectionName) {
+    /**
+     * Fetches MCP tools available for the specified MCP connection in the given document.
+     *
+     * <p>The method locates the mediator at the provided {@code range} within the
+     * document identified by {@code documentUri} and collects tools associated with the
+     * given {@code connectionName}. If {@code connectionName} is null or empty, tools for all
+     * connections may be considered depending on implementation.</p>
+     *
+     * @param documentUri    path to the current XML document
+     * @param range          the location range used to locate the mediator node in the document
+     * @param connections    list of available {@link Connection} objects in the project context
+     * @param connectionName the MCP connection name to filter tools by; may be null or empty
+     * @return an {@link MCPToolResponse} containing the discovered tools and related metadata
+     */
+    public MCPToolResponse fetchMcpTools(String documentUri, Range range, List<Connection> connections,
+                                         String connectionName) {
         MCPToolResponse response = new MCPToolResponse();
 
         try {
+            DOMNode node = Utils.getDOMNode(documentUri, range.getStart());
+            List<String> existingToolsForConnection = getExistingToolsForConnection(node, connectionName);
+
             Connection connection = connections.stream()
                     .filter(c -> connectionName.equals(c.getName()))
                     .findFirst()
@@ -1386,7 +1439,7 @@ public class AIConnectorHandler {
             } else {
                 response.error = "Unexpected MCP response";
             }
-
+            response.selectedTools = existingToolsForConnection;
         } catch (Exception e) {
             response.error = e.getMessage();
         }
