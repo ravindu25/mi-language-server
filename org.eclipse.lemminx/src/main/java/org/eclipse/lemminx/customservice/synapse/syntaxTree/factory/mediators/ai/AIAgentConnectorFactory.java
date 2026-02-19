@@ -76,13 +76,14 @@ public class AIAgentConnectorFactory extends AIConnectorFactory {
      */
     private void populateMCPConnections(AIAgent aiAgent, DOMElement element) {
 
-        DOMNode mcpConnectionsElement = Utils.getChildNodeByName(element, "mcpConnections");
+        DOMNode mcpConnectionsElement = Utils.getChildNodeByName(element, Constant.MCP_CONNECTIONS);
         if (mcpConnectionsElement != null) {
+            LOGGER.log(Level.INFO, "Processing MCP connections for AI agent");
             MCPConnections mcpConnectionsObj = new MCPConnections();
             List<DOMNode> mcpChildren = mcpConnectionsElement.getChildren();
             List<String> mcpConnectionList = new java.util.ArrayList<>();
             for (DOMNode child : mcpChildren) {
-                if (child instanceof DOMElement && "mcpConfigKey".equals(child.getNodeName())) {
+                if (child instanceof DOMElement && Constant.MCP_CONFIG_KEY.equals(child.getNodeName())) {
                     String value = Utils.getInlineString(child.getFirstChild());
                     if (value != null && !value.isBlank()) {
                         mcpConnectionList.add(value);
@@ -91,6 +92,7 @@ public class AIAgentConnectorFactory extends AIConnectorFactory {
             }
             mcpConnectionsObj.setMcpConnections(mcpConnectionList);
             aiAgent.setMcpConnections(mcpConnectionsObj);
+            LOGGER.log(Level.INFO, "MCP connections configured for AI agent with {} connections", mcpConnectionList.size());
         }
     }
 

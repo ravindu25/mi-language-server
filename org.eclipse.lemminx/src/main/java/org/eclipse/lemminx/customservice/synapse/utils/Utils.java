@@ -239,11 +239,17 @@ public class Utils {
             throws URISyntaxException, IOException, BadLocationException {
 
         if (StringUtils.isEmpty(documentUri) || position == null) {
+            logger.log(Level.INFO, "Invalid input: documentUri is empty or position is null");
             return null;
         }
+        logger.log(Level.INFO,
+                String.format("Retrieving DOM node at position [%d:%d] in document: %s", position.getLine(),
+                        position.getCharacter(), documentUri));
         DOMDocument document = Utils.getDOMDocument(new File(new URI(documentUri)));
         int offset = document.offsetAt(position);
-        return document.findNodeAt(offset);
+        DOMNode node = document.findNodeAt(offset);
+        logger.log(Level.INFO, "Found DOM node of type '%s'", node != null ? node.getNodeName() : "null");
+        return node;
     }
 
     /**

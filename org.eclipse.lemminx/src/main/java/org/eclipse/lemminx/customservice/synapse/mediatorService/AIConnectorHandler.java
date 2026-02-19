@@ -288,6 +288,7 @@ public class AIConnectorHandler {
 
         List<String> toolNames = new ArrayList<>();
         if (toolsNode == null) {
+            LOGGER.log( Level.INFO, "No tools node found for connection: " + connection);
             return toolNames;
         }
 
@@ -1383,8 +1384,9 @@ public class AIConnectorHandler {
      */
     public MCPToolResponse fetchMcpTools(String documentUri, Range range, List<Connection> connections,
                                          String connectionName) {
-        MCPToolResponse response = new MCPToolResponse();
 
+        LOGGER.log(Level.INFO, "Fetching MCP tools for connection: " + connectionName);
+        MCPToolResponse response = new MCPToolResponse();
         try {
             DOMNode node = Utils.getDOMNode(documentUri, range.getStart());
             List<String> existingToolsForConnection = getExistingToolsForConnection(node, connectionName);

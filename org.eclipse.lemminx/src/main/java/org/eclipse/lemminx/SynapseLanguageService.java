@@ -802,8 +802,10 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     @Override
     public CompletableFuture<MCPToolResponse> getMCPTools(MCPToolRequest param) {
 
+        log.log(Level.INFO, "Fetching MCP tools for connection: {}", param.connectionName);
         Connections connections = ConnectionFinder.findConnections(projectUri, Constant.LOWERCASE_AI, connectorHolder, isLegacyProject).getLeft();
         AIConnectorHandler aiConnectorHandler = new AIConnectorHandler(mediatorHandler, projectUri);
+        log.log(Level.INFO, "Initialized AI connector handler for MCP tools fetch");
         return CompletableFuture.supplyAsync(
                 () -> aiConnectorHandler.fetchMcpTools(param.documentUri, param.range, connections.getConnections(),
                         param.connectionName));
