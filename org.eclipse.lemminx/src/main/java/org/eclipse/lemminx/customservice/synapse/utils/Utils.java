@@ -49,7 +49,6 @@ import org.eclipse.lemminx.dom.DOMParser;
 import org.eclipse.lemminx.uriresolver.URIResolverExtensionManager;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.Range;
 import org.w3c.dom.Node;
 
 import java.io.BufferedInputStream;
@@ -231,12 +230,11 @@ public class Utils {
      * @param documentUri the document URI as a string
      * @param position the position inside the document
      * @return the {@link DOMNode} at the given position, or {@code null} if not found
-     * @throws URISyntaxException if the {@code documentUri} is an invalid URI
      * @throws IOException if an I/O error occurs while reading or parsing the document
      * @throws BadLocationException if the provided {@code position} is invalid for the document
      */
     public static DOMNode getDOMNode(String documentUri, Position position)
-            throws URISyntaxException, IOException, BadLocationException {
+            throws IOException, BadLocationException {
 
         if (StringUtils.isEmpty(documentUri) || position == null) {
             logger.log(Level.INFO, "Invalid input: documentUri is empty or position is null");
@@ -245,7 +243,7 @@ public class Utils {
         logger.log(Level.INFO,
                 String.format("Retrieving DOM node at position [%d:%d] in document: %s", position.getLine(),
                         position.getCharacter(), documentUri));
-        DOMDocument document = Utils.getDOMDocument(new File(new URI(documentUri)));
+        DOMDocument document = Utils.getDOMDocumentFromPath(getAbsolutePath(documentUri));
         int offset = document.offsetAt(position);
         DOMNode node = document.findNodeAt(offset);
         logger.log(Level.INFO, "Found DOM node of type '%s'", node != null ? node.getNodeName() : "null");
@@ -809,6 +807,8 @@ public class Utils {
             try {
                 return Paths.get(new URI(path)).toAbsolutePath().toString();
             } catch (URISyntaxException e) {
+                logger.log(Level.SEVERE,
+                        String.format("Failed to convert URI to absolute path: %s", path), e);
             }
         }
         return path;

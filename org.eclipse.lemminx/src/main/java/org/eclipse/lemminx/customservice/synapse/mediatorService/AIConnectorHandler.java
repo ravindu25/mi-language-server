@@ -151,7 +151,7 @@ public class AIConnectorHandler {
                 }
             }
             connectorData.put(Constant.PARAMETERS, parameterData);
-            if (node instanceof AIAgent && ((AIAgent) node).getTools() != null) {
+            if (node instanceof AIAgent) {
                 AIAgent aiAgent = (AIAgent) node;
                 if (aiAgent.getTools() != null) {
                     List<Map<String, String>> tools = new ArrayList<>();
@@ -288,8 +288,13 @@ public class AIConnectorHandler {
 
         List<String> toolNames = new ArrayList<>();
         if (toolsNode == null) {
-            LOGGER.log( Level.INFO, "No tools node found for connection: " + connection);
+            LOGGER.log( Level.INFO, "No tools node found.");
             return toolNames;
+        }
+        if (!Constant.TOOLS.equals(toolsNode.getNodeName())) {
+            LOGGER.log(Level.SEVERE,
+                    String.format("Invalid node for MCP tool fetching. Expected <tools> but found <%s>",
+                            toolsNode.getNodeName()));
         }
 
         NodeList children = toolsNode.getChildNodes();
@@ -1371,13 +1376,12 @@ public class AIConnectorHandler {
     /**
      * Fetches MCP tools available for the specified MCP connection in the given document.
      *
-     * <p>The method locates the mediator at the provided {@code range} within the
-     * document identified by {@code documentUri} and collects tools associated with the
-     * given {@code connectionName}. If {@code connectionName} is null or empty, tools for all
-     * connections may be considered depending on implementation.</p>
+     * <p>The provided {@code range} must correspond to the <tools> node in the XML document identified by
+     * {@code documentUri}. The method resolves the DOM node at the start of the given range and extracts
+     * tools associated with the specified {@code connectionName}.</p>
      *
-     * @param documentUri    path to the current XML document
-     * @param range          the location range used to locate the mediator node in the document
+     * @param documentUri    path or file URI of the current XML document
+     * @param range          range that must point to the <tools> node (or inside it)
      * @param connections    list of available {@link Connection} objects in the project context
      * @param connectionName the MCP connection name to filter tools by; may be null or empty
      * @return an {@link MCPToolResponse} containing the discovered tools and related metadata
