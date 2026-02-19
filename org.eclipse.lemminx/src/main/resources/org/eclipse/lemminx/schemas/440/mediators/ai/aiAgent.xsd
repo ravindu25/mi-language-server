@@ -38,7 +38,7 @@
                 <xs:element name="mcpConnections">
                     <xs:complexType>
                         <xs:sequence>
-                            <xs:element name="mcpConfigKey" type="xs:string" maxOccurs="unbounded"/>
+                            <xs:element name="mcpConfigKey" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
                         </xs:sequence>
                     </xs:complexType>
                 </xs:element>

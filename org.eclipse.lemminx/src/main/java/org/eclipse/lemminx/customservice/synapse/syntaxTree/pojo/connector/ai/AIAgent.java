@@ -17,6 +17,7 @@ package org.eclipse.lemminx.customservice.synapse.syntaxTree.pojo.connector.ai;
 public class AIAgent extends AIConnector {
 
     private String agentID;
+    private MCPConnections mcpConnections;
     private AgentTools tools;
 
     public String getAgentID() {
@@ -37,5 +38,15 @@ public class AIAgent extends AIConnector {
     public void setTools(AgentTools tools) {
 
         this.tools = tools;
+    }
+
+    public MCPConnections getMcpConnections() {
+
+        return mcpConnections;
+    }
+
+    public void setMcpConnections(MCPConnections mcpConnections) {
+
+        this.mcpConnections = mcpConnections;
     }
 }

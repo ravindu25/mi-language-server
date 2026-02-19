@@ -14,12 +14,13 @@
 
 package org.eclipse.lemminx.customservice.synapse.mediatorService.pojo;
 
-import org.eclipse.lsp4j.Range;
-
 import java.util.Map;
+import java.util.List;
 
 public class MCPToolResponse {
 
     public Map<String, String> tools;
     public String error;
+    // Names of tools already present in the document for the requested connection
+    public List<String> selectedTools;
 }

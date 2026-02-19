@@ -14,9 +14,11 @@
 
 package org.eclipse.lemminx.customservice.synapse.mediatorService.pojo;
 
-import java.util.Map;
+import org.eclipse.lsp4j.Range;
 
 public class MCPToolRequest {
 
+    public String documentUri;
+    public Range range;
     public String connectionName;
 }
