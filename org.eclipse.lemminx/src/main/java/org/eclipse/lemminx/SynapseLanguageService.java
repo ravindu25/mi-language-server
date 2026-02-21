@@ -338,7 +338,7 @@ public class SynapseLanguageService implements ISynapseLanguageService {
     public CompletableFuture<ResourceResponse> availableResources(ResourceParam param) {
 
         ResourceResponse response = resourceFinder.getAvailableResources(
-                StringUtils.isNotBlank(param.projectPath) ? param.projectPath : projectUri, param.resourceType);
+                StringUtils.isNotBlank(param.projectPath) ? param.projectPath : StringUtils.isNotBlank(param.customProjectUri) ? param.customProjectUri : projectUri, param.resourceType);
         return CompletableFuture.supplyAsync(() -> response);
     }
 
